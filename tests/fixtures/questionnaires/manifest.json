@@ -1,0 +1,262 @@
+[
+  {
+    "file": "01-grocery-delivery.docx",
+    "title": "Grocery delivery experience questionnaire",
+    "questions": [
+      {
+        "id": "S1",
+        "prompt": "Are you 18 or older?"
+      },
+      {
+        "id": "S2",
+        "prompt": "When did you last receive a Juniper Basket delivery?"
+      },
+      {
+        "id": "S3",
+        "prompt": "Did you personally place that order?"
+      },
+      {
+        "id": "Q1",
+        "prompt": "Thinking about that delivery, what stands out to you?"
+      },
+      {
+        "id": "Q2",
+        "prompt": "How many Juniper Basket orders have you received in the past 30 days?"
+      },
+      {
+        "id": "Q3",
+        "prompt": "What was the main reason for placing your most recent order?"
+      },
+      {
+        "id": "Q4",
+        "prompt": "How easy or difficult was it to find the items you wanted?"
+      },
+      {
+        "id": "Q5",
+        "prompt": "How satisfied or dissatisfied were you with when the order arrived?"
+      },
+      {
+        "id": "Q6",
+        "prompt": "Which of these happened with your most recent order?"
+      },
+      {
+        "id": "Q7",
+        "prompt": "What happened with the issue you selected?"
+      },
+      {
+        "id": "Q8",
+        "prompt": "Did you contact Juniper Basket about that issue?"
+      },
+      {
+        "id": "Q9",
+        "prompt": "How easy or difficult was it to get help?"
+      },
+      {
+        "id": "Q10",
+        "prompt": "Overall, how satisfied or dissatisfied were you with this order?"
+      },
+      {
+        "id": "Q11",
+        "prompt": "How likely or unlikely are you to place another Juniper Basket order in the next 30 days?"
+      },
+      {
+        "id": "Q12",
+        "prompt": "What is the one change that would most improve your next delivery?"
+      },
+      {
+        "id": "Q13",
+        "prompt": "How many people live in your household, including you?"
+      },
+      {
+        "id": "Q14",
+        "prompt": "Which age group are you in?"
+      }
+    ],
+    "question_count": 17
+  },
+  {
+    "file": "02-software-onboarding.docx",
+    "title": "Reporting software onboarding questionnaire",
+    "questions": [
+      {
+        "id": "S1",
+        "prompt": "Are you 18 or older?"
+      },
+      {
+        "id": "S2",
+        "prompt": "When did you create your most recent FolioTrack workspace?"
+      },
+      {
+        "id": "S3",
+        "prompt": "Did you personally complete at least part of the setup?"
+      },
+      {
+        "id": "Q1",
+        "prompt": "What were you hoping to do when you first opened FolioTrack?"
+      },
+      {
+        "id": "Q2",
+        "prompt": "Which tasks have you tried in this workspace?"
+      },
+      {
+        "id": "Q3",
+        "prompt": "Which of the tasks you selected did you try most recently?"
+      },
+      {
+        "id": "Q4",
+        "prompt": "How easy or difficult was it to complete that task?"
+      },
+      {
+        "id": "Q5",
+        "prompt": "What, if anything, has made setup harder?"
+      },
+      {
+        "id": "Q6",
+        "prompt": "What happened when setup became difficult?"
+      },
+      {
+        "id": "Q7",
+        "prompt": "Which sources of help have you used during setup?"
+      },
+      {
+        "id": "Q8",
+        "prompt": "How useful or not useful were the help articles you read?"
+      },
+      {
+        "id": "Q9",
+        "prompt": "Did you get a response from support?"
+      },
+      {
+        "id": "Q10",
+        "prompt": "How satisfied or dissatisfied were you with the response from support?"
+      },
+      {
+        "id": "Q11",
+        "prompt": "How satisfied or dissatisfied are you with the setup experience so far?"
+      },
+      {
+        "id": "Q12",
+        "prompt": "How likely or unlikely are you to use this workspace in the next 7 days?"
+      },
+      {
+        "id": "Q13",
+        "prompt": "What is the one change that would most improve setup for you?"
+      },
+      {
+        "id": "Q14",
+        "prompt": "Which area best describes your work?"
+      },
+      {
+        "id": "Q15",
+        "prompt": "About how many people work at your organization?"
+      }
+    ],
+    "question_count": 18
+  },
+  {
+    "file": "03-refill-service-concept.docx",
+    "title": "Refill service concept questionnaire",
+    "questions": [
+      {
+        "id": "S1",
+        "prompt": "Are you 18 or older?"
+      },
+      {
+        "id": "S2",
+        "prompt": "Have you personally bought rice, pasta, oats, or dried beans for your household in the past 4 weeks?"
+      },
+      {
+        "id": "Q1",
+        "prompt": "What matters most to you when you buy these foods?"
+      },
+      {
+        "id": "Q2",
+        "prompt": "What is your first reaction to this idea?"
+      },
+      {
+        "id": "Q3",
+        "prompt": "How appealing or unappealing is this service to you?"
+      },
+      {
+        "id": "Q4",
+        "prompt": "How relevant or irrelevant is this service to the way you shop?"
+      },
+      {
+        "id": "Q5",
+        "prompt": "How clear or unclear is the container return process?"
+      },
+      {
+        "id": "Q6",
+        "prompt": "Which parts of the idea, if any, appeal to you?"
+      },
+      {
+        "id": "Q7",
+        "prompt": "Which parts of the idea, if any, concern you?"
+      },
+      {
+        "id": "Q8",
+        "prompt": "What is your main concern about the idea?"
+      },
+      {
+        "id": "Q9",
+        "prompt": "How easy or difficult would it be to store empty containers until your next order?"
+      },
+      {
+        "id": "Q10",
+        "prompt": "Assuming product prices were similar to where you usually shop, how likely or unlikely would you be to try this service in the next 3 months?"
+      },
+      {
+        "id": "Q11",
+        "prompt": "What is the one change that would most improve this idea for you?"
+      },
+      {
+        "id": "Q12",
+        "prompt": "How many people live in your household, including you?"
+      },
+      {
+        "id": "Q13",
+        "prompt": "Which best describes your role in buying household groceries?"
+      }
+    ],
+    "question_count": 15
+  },
+  {
+    "file": "04-broadband-legacy-tracker.docx",
+    "title": "Broadband relationship tracker questionnaire",
+    "questions": [
+      {
+        "id": "S1",
+        "prompt": "Are you 18 or older and involved in choosing your household broadband provider?"
+      },
+      {
+        "id": "S2",
+        "prompt": "Is your household currently a Parkside Broadband customer?"
+      },
+      {
+        "id": "Q1",
+        "prompt": "How long has your household been with Parkside Broadband?"
+      },
+      {
+        "id": "Q2",
+        "prompt": "Which age group are you in?"
+      },
+      {
+        "id": "Q3",
+        "prompt": "Which Parkside package do you currently use?"
+      },
+      {
+        "id": "Q4",
+        "prompt": "How much do you agree or disagree with each statement about Parkside?"
+      },
+      {
+        "id": "Q5",
+        "prompt": "Do you expect to keep Parkside as your provider for the next 3 months?"
+      },
+      {
+        "id": "Q6",
+        "prompt": "What is the main reason for your answer?"
+      }
+    ],
+    "question_count": 8
+  }
+]

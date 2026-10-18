@@ -1,26 +1,125 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #fbfaf8;
+  --foreground: #1f2024;
+  --heading: #121110;
+  --card: #ffffff;
+  --card-foreground: #1f2024;
+  --popover: #ffffff;
+  --popover-foreground: #1f2024;
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f1ec;
+  --secondary-foreground: #1f2024;
+  --muted: #f3f1ec;
+  --muted-foreground: #4a4f57;
+  --accent: #edf2ff;
+  --accent-foreground: #1d4ed8;
+  --brand-orange: #f4501e;
+  --destructive: #ac3c34;
+  --border: #dedbd5;
+  --input: #8d8a83;
+  --ring: #1d4ed8;
+  --radius: 0.75rem;
+  --sidebar: #f3f1ec;
+  --sidebar-foreground: #1f2024;
+  --sidebar-primary: #1d4ed8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf2ff;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #dedbd5;
+  --sidebar-ring: #1d4ed8;
 }
 
 @theme inline {
+  --font-sans: var(--font-inter), Arial, sans-serif;
+  --font-heading: var(--font-newsreader), Georgia, serif;
+  --font-brand: var(--font-jakarta), Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-heading: var(--heading);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand-orange: var(--brand-orange);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: var(--radius);
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * { @apply border-border outline-ring; }
+  body { @apply bg-background font-sans text-foreground antialiased; }
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+  ::selection { background: #dbe5ff; }
+}
+
+@media (pointer: coarse) {
+  [data-slot="button"], [data-slot="tabs-trigger"] { min-height: 44px; }
+  [data-slot="button"][data-size^="icon"] { min-width: 44px; }
+}
+
+/* Controls draw their own pressed state (scale), so suppress the mobile tap flash. */
+[data-slot="button"], [data-slot="tabs-trigger"] { -webkit-tap-highlight-color: transparent; }
+
+/* Staged entrance for infrequent moments (empty and success states).
+   Hidden state lives in the `from` keyframe so content stays visible if the
+   animation never runs. Reduced motion keeps only the opacity fade. */
+@layer components {
+  .stagger-item { animation: stagger-fade 300ms ease-out both; }
+  .stagger-item:nth-child(2) { animation-delay: 100ms; }
+  .stagger-item:nth-child(3) { animation-delay: 200ms; }
+  .stagger-item:nth-child(4) { animation-delay: 300ms; }
+  @media (prefers-reduced-motion: no-preference) {
+    .stagger-item { animation-name: stagger-fade-up; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes stagger-fade {
+  from { opacity: 0; }
+}
+
+/* A count badge that just went up: brand orange, settling back to its resting look. */
+@keyframes badge-flash {
+  0%, 35% { background-color: var(--brand-orange); color: #fff; }
+}
+
+@keyframes stagger-fade-up {
+  from { opacity: 0; transform: translateY(12px); filter: blur(4px); }
+}
+
+/* Reduced motion: movement, scale and blur are gated per component with
+   motion-safe:/motion-reduce:; opacity and color transitions stay on. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
 }

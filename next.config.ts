@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Keep the PDF worker and native parser dependencies resolvable by Node.
+  serverExternalPackages: ["pdf-parse", "mammoth", "formidable", "yauzl"],
   turbopack: {
     rules: {
       "*.css": {
