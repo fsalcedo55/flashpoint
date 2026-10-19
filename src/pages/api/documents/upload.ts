@@ -18,7 +18,14 @@ export default async function handler(request: NextApiRequest, response: NextApi
     const fileType = validateUpload(name, buffer);
     return response.status(200).json({ fileType, ...await extractDocument(buffer, fileType) });
   } catch (error) {
-    return response.status(400).json({ error: error instanceof DocumentError
+    if (!(error instanceof DocumentError)) {
+      // Parser messages can include document contents; log only diagnostic metadata.
+      console.error("[document-upload] Unexpected upload failure", {
+        name: error instanceof Error ? error.name : "UnknownError",
+        code: error instanceof Error && "code" in error ? error.code : undefined,
+      });
+    }
+    return response.status(error instanceof DocumentError ? 400 : 500).json({ error: error instanceof DocumentError
       ? error.message : "This document could not be read. Export a new PDF or DOCX and try again." });
   }
 }

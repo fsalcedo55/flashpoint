@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import formidable from "formidable";
+import formidable, { errors as formidableErrors } from "formidable";
 import { MAX_FILE_BYTES } from "../../lib/documents";
 import { DocumentError } from "./document-extraction";
 
@@ -20,8 +20,11 @@ export async function readUpload(request: IncomingMessage) {
     if (!file || allFiles.length !== 1) throw new DocumentError("Choose one file per upload request.");
     return { name: file.originalFilename ?? "", buffer: await readFile(file.filepath) };
   } catch (error) {
-    if (error instanceof DocumentError) throw error;
-    throw new DocumentError("Upload failed. Choose a nonempty PDF or DOCX no larger than 4 MB, and try again.");
+    if (error instanceof formidableErrors.default && error.httpCode !== undefined && error.httpCode < 500) {
+      throw new DocumentError("Upload failed. Choose a nonempty PDF or DOCX no larger than 4 MB, and try again.");
+    }
+    // Preserve filesystem and unexpected parser failures for the API's error handler.
+    throw error;
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

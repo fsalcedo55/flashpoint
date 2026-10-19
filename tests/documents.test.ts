@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import fs, { readdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { strToU8, zipSync } from "fflate";
+import type { NextApiRequest, NextApiResponse } from "next";
 import { MAX_FILE_BYTES } from "../src/lib/documents";
 import { DocumentError, extractDocument, validateUpload } from "../src/server/services/document-extraction";
-import { readUpload } from "../src/server/services/document-upload";
+import uploadHandler from "../src/pages/api/documents/upload";
 import { docxFixture, pdfFixture } from "./document-fixtures";
 
 async function extract(name: string, buffer: Buffer) { return extractDocument(buffer, validateUpload(name, buffer)); }
@@ -56,15 +57,16 @@ test("all 58 realistic questionnaire prompts survive extraction", async () => {
   assert.equal(count, 58);
 });
 
-test("multipart uploads enforce bounds and remove temporary files on success and failure", async () => {
+test("upload API enforces bounds, logs unexpected failures and removes temporary files", async (t) => {
   const before = (await readdir(tmpdir())).filter((name) => name.startsWith("flashpoint-upload-"));
   const pdf = await pdfFixture(["Question"]);
+  const errors = t.mock.method(console, "error", () => {});
   const server = createServer(async (request, response) => {
-    try {
-      const file = await readUpload(request);
-      const result = await extract(file.name, file.buffer);
-      response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(result));
-    } catch { response.writeHead(400).end("Upload rejected"); }
+    const apiResponse = Object.assign(response, {
+      status(code: number) { response.statusCode = code; return apiResponse; },
+      json(body: unknown) { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify(body)); },
+    });
+    await uploadHandler(request as NextApiRequest, apiResponse as NextApiResponse);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
@@ -79,6 +81,19 @@ test("multipart uploads enforce bounds and remove temporary files on success and
     for (const buffers of [[], [pdf, pdf], [Buffer.alloc(MAX_FILE_BYTES + 1)], [Buffer.alloc(0)]]) {
       const rejected = await send(buffers); assert.equal(rejected.status, 400); await rejected.text();
     }
+    assert.equal(errors.mock.callCount(), 0);
+
+    const diskFailure = t.mock.method(fs, "readFile", async () => {
+      throw Object.assign(new Error("private document contents and server path"), { code: "EIO" });
+    });
+    try {
+      const failed = await send([pdf]);
+      assert.equal(failed.status, 500);
+      assert.deepEqual(await failed.json(), { error: "This document could not be read. Export a new PDF or DOCX and try again." });
+      assert.deepEqual(errors.mock.calls.map((call) => call.arguments), [
+        ["[document-upload] Unexpected upload failure", { name: "Error", code: "EIO" }],
+      ]);
+    } finally { diskFailure.mock.restore(); }
     assert.deepEqual((await readdir(tmpdir())).filter((name) => name.startsWith("flashpoint-upload-")).sort(), before.sort());
   } finally {
     server.closeAllConnections();
