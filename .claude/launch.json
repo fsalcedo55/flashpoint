@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "/bin/zsh",
+      "runtimeArgs": ["-lc", "export PATH=\"$HOME/.nvm/versions/node/v24.21.0/bin:$PATH\"; corepack pnpm dev"],
+      "port": 3000
+    },
+    {
+      "name": "attach",
+      "url": "http://127.0.0.1:3000",
+      "port": 3000
+    }
+  ]
+}
