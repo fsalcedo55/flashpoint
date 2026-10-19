@@ -1,6 +1,6 @@
 # Flashpoint Preferences
 
-A standalone preferences parser built for the Flashpoint.AI trial, starting with survey questionnaires.
+A standalone preferences parser built for survey questionnaires.
 
 Upload PDF or DOCX questionnaires to detect patterns in how you write and structure surveys. Review each suggested preference alongside its source evidence, then confirm, edit, or deny it. Only confirmed preferences become part of your profile for the current session.
 
