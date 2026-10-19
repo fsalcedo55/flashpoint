@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Brain, Check, ChevronDown, Info, LoaderCircle, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Info, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { IconSwap } from "@/components/ui/icon-swap";
@@ -73,92 +73,93 @@ function currentTopic(notes: string) {
   return titles.at(-1)?.[1].trim() ?? "Working through the documents";
 }
 
-// Trigger label: the searching grid and the model's current topic while it works; how long it took afterwards.
-function NotesLabel({ running, topic }: { running: boolean; topic: string }) {
-  const { duration, isOpen } = useReasoning();
+function formatDuration(seconds: number) {
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+// "Notes" toggle in the meta line; must sit inside <Reasoning> to read its open state.
+function NotesToggle() {
+  const { isOpen } = useReasoning();
   return (
-    <>
-      {running ? <TileGrid mode="searching" /> : <Brain className="size-3.5 shrink-0" aria-hidden="true" />}
-      {running
-        ? <Shimmer key={topic} as="span" duration={1.6} className="text-xs animate-in fade-in-0 duration-300">{topic + "…"}</Shimmer>
-        : <span>{duration ? `Worked for ${duration} ${duration === 1 ? "second" : "seconds"}` : "How this was found"}</span>}
-      <ChevronDown className={cn("size-3.5 shrink-0 transition-transform duration-150", isOpen && "rotate-180")} aria-hidden="true" />
-    </>
+    <ReasoningTrigger className="w-fit shrink-0 gap-0.5 rounded text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+      Notes
+      <ChevronDown className={cn("size-3 transition-transform duration-150", isOpen && "rotate-180")} aria-hidden="true" />
+    </ReasoningTrigger>
   );
 }
 
-// The model's working notes (its reasoning summary): open and growing while the run is
-// in flight, collapsed to a one-line record once it's done. Never styled as conclusions.
-function RunNotes({ run }: { run: AnalysisRun }) {
-  const running = run.status === "running";
-  const stage = useStage(running && !run.notes);
-  const content = useRef<HTMLDivElement>(null);
-  const duration = run.startedAt && run.finishedAt ? Math.max(1, Math.ceil((run.finishedAt - run.startedAt) / 1000)) : undefined;
-  // Keep the newest notes in view while they stream.
-  useEffect(() => {
-    if (running && content.current) content.current.scrollTop = content.current.scrollHeight;
-  }, [running, run.notes]);
-  if (!running && !run.notes) return null;
-  if (!run.notes) {
-    return (
-      <div className="mt-2 flex items-center gap-3">
-        <TileGrid mode="searching" />
-        <p role="status" aria-live="polite" className="leading-5 text-muted-foreground">
-          <span key={stage} className="inline-block animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4">{stages[stage]}…</span>
-        </p>
-      </div>
-    );
-  }
-  return (
-    <Reasoning isStreaming={running} duration={duration} className="mt-2 mb-0">
-      <ReasoningTrigger className="w-fit gap-2 text-xs"><NotesLabel running={running} topic={currentTopic(run.notes)} /></ReasoningTrigger>
-      <ReasoningContent ref={content} className="mt-2 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-secondary px-3 py-2 text-xs leading-5 text-muted-foreground [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4">
-        {run.notes}
-      </ReasoningContent>
-    </Reasoning>
-  );
-}
-
-type Run = AnalysisRun;
-
-function AnalysisRow({ run, listShownAt }: { run: Run; listShownAt: number }) {
+// Two lines in every state, so the row keeps its shape as it runs:
+// the outcome and its action, then muted metadata (sources, time, notes toggle).
+// The model's working notes fold out underneath; they're never styled as conclusions.
+function AnalysisRow({ run, listShownAt }: { run: AnalysisRun; listShownAt: number }) {
   const { startAnalysis, isAnalyzing: busy, isUploading, configuration } = useWorkspace();
   const available = configuration.data?.configured === true;
   const ref = useRef<HTMLLIElement>(null);
+  const notesRef = useRef<HTMLDivElement>(null);
   // Captured at mount: a row that arrived after the list was already showing
   // keeps its entrance and animates its result. Rows from the first load don't.
   const [entered] = useState(() => Date.now() - listShownAt > 500);
   const [wasRunning] = useState(run.status === "running");
+  const running = run.status === "running";
+  const stage = useStage(running && !run.notes);
+  const topic = run.notes ? currentTopic(run.notes) : stages[stage];
+  const duration = run.startedAt && run.finishedAt ? Math.max(1, Math.ceil((run.finishedAt - run.startedAt) / 1000)) : undefined;
+  const names = run.sources.map((source) => source.name).join(", ");
   useEffect(() => {
     if (!entered) return;
     ref.current?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
   }, [entered]);
-  const reveal = "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4";
+  // Keep the newest notes in view while they stream.
+  useEffect(() => {
+    if (running && notesRef.current) notesRef.current.scrollTop = notesRef.current.scrollHeight;
+  }, [running, run.notes]);
+  const reveal = wasRunning && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4";
+
   return (
-    <li ref={ref} className={cn("py-3 text-xs", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
-      <p className="break-words text-sm font-medium">{run.sources.map((source) => source.name).join(", ")}</p>
-      {run.status === "failed" ? (
-        <div className={cn("mt-2", wasRunning && reveal)}>
-          <p className="leading-5 text-destructive">{run.error}</p>
-          <Button size="sm" variant="outline" className="mt-2" disabled={isUploading || busy || !available} onClick={() => void startAnalysis(run.sources.map((source) => source.id))}>Retry analysis</Button>
+    <li ref={ref} className={cn("py-3", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
+      <Reasoning isStreaming={running} duration={duration} className="mb-0">
+        <div className="flex min-h-9 items-center justify-between gap-3">
+          {running ? (
+            <p role="status" aria-live="polite" className="flex min-w-0 items-center gap-3 text-sm">
+              <TileGrid mode="searching" />
+              <Shimmer key={topic} as="span" duration={1.6} className="truncate animate-in fade-in-0 duration-300">{topic + "…"}</Shimmer>
+            </p>
+          ) : null}
+          {run.status === "completed" ? (
+            <p className={cn("flex min-w-0 items-center gap-2 text-sm", run.suggestionCount ? "font-medium" : "text-muted-foreground", reveal)}>
+              {run.suggestionCount ? <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" /> : null}
+              {run.suggestionCount ? `${run.suggestionCount} ${run.suggestionCount === 1 ? "suggestion" : "suggestions"} ready for review` : "No new preferences found"}
+            </p>
+          ) : null}
+          {run.status === "failed" ? <p className={cn("min-w-0 text-sm text-destructive", reveal)}>{run.error}</p> : null}
+
+          {run.status === "completed" && run.suggestionCount ? (
+            <Button asChild variant="ghost" size="sm" className={cn("-mr-2 shrink-0 gap-1 px-2", reveal)}><Link href="/review">Review <ArrowRight className="size-3.5" aria-hidden="true" /></Link></Button>
+          ) : null}
+          {run.status === "failed" ? (
+            <Button size="sm" variant="outline" className="shrink-0" disabled={isUploading || busy || !available} onClick={() => void startAnalysis(run.sources.map((source) => source.id))}>Retry</Button>
+          ) : null}
         </div>
-      ) : null}
-      {run.status === "completed" ? (
-        <div className={cn("mt-1 flex flex-wrap items-center justify-between gap-2", wasRunning && reveal)}>
-          <p className="flex items-start gap-1.5 leading-5 text-muted-foreground">
-            {wasRunning ? <Check className="mt-1 size-3 shrink-0 text-primary" aria-hidden="true" /> : null}
-            <span>{run.suggestionCount ? `${run.suggestionCount} ${run.suggestionCount === 1 ? "suggestion" : "suggestions"} ready for review.` : "No new preferences found. Existing decisions are unchanged."}{run.rejectedCount ? ` ${run.rejectedCount} discarded because the source quotes could not be verified.` : ""}</span>
-          </p>
-          {run.suggestionCount ? <Button asChild variant="ghost" size="sm" className="-mr-2 px-2 text-sm"><Link href="/review">Review preferences <ArrowRight className="size-3" aria-hidden="true" /></Link></Button> : null}
+
+        <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="truncate" title={names}>{names}</span>
+          {duration && !running ? <><span aria-hidden="true">·</span><span className="shrink-0 tabular-nums">{formatDuration(duration)}</span></> : null}
+          {run.rejectedCount && !running ? <><span aria-hidden="true">·</span><span className="shrink-0">{run.rejectedCount} unverified dropped</span></> : null}
+          {run.notes ? <><span aria-hidden="true">·</span><NotesToggle /></> : null}
         </div>
-      ) : null}
-      <RunNotes run={run} />
+
+        {run.notes ? (
+          <ReasoningContent ref={notesRef} className="mt-2 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-secondary px-3 py-2 text-xs leading-5 text-muted-foreground [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4">
+            {run.notes}
+          </ReasoningContent>
+        ) : null}
+      </Reasoning>
     </li>
   );
 }
 
 // Mounts with the first loaded data, so rows can tell "here from the start" from "arrived live".
-function RunList({ runs }: { runs: Run[] }) {
+function RunList({ runs }: { runs: AnalysisRun[] }) {
   const [listShownAt] = useState(() => Date.now());
   return (
     <ul className="divide-y rounded-xl border bg-white px-4">

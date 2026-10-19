@@ -86,8 +86,8 @@ export function SavedDocuments() {
     <Dialog open={Boolean(deleting)} onOpenChange={(open) => { if (!open) setDeletingId(null); }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="break-words leading-6">Delete {deleting?.name}?</DialogTitle>
-          <DialogDescription>This removes the document from this session. You can add the original file again.</DialogDescription>
+          <DialogTitle>Delete this document?</DialogTitle>
+          <DialogDescription><span className="font-medium text-foreground [overflow-wrap:anywhere]">{deleting?.name}</span> will be removed from this session. You can add the original file again.</DialogDescription>
         </DialogHeader>
         {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
         <DialogFooter>

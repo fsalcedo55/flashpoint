@@ -12,7 +12,7 @@ import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode, Ref } from "react";
 import {
   createContext,
   memo,
@@ -97,12 +97,15 @@ export const Reasoning = memo(
       }
     }, [isStreaming, setDuration]);
 
-    // Auto-open when streaming starts (unless explicitly closed)
+    // Auto-open when streaming starts (unless explicitly closed). Only on the transition:
+    // depending on isOpen here would reopen the panel every time the user collapses it.
+    const wasStreamingRef = useRef(isStreaming);
     useEffect(() => {
-      if (isStreaming && !isOpen && !isExplicitlyClosed) {
+      if (isStreaming && !wasStreamingRef.current && !isExplicitlyClosed) {
         setIsOpen(true);
       }
-    }, [isStreaming, isOpen, setIsOpen, isExplicitlyClosed]);
+      wasStreamingRef.current = isStreaming;
+    }, [isStreaming, setIsOpen, isExplicitlyClosed]);
 
     // Auto-close when streaming ends (once only, and only if it ever streamed)
     useEffect(() => {
@@ -198,25 +201,31 @@ export const ReasoningTrigger = memo(
   }
 );
 
-export type ReasoningContentProps = ComponentProps<
+export type ReasoningContentProps = Omit<ComponentProps<
   typeof CollapsibleContent
-> & {
+>, "ref"> & {
   children: string;
+  // The panel itself (styling, scroll). The outer element only animates height.
+  ref?: Ref<HTMLDivElement>;
 };
 
 const streamdownPlugins = { cjk, code, math, mermaid };
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
+  ({ className, children, ref, ...props }: ReasoningContentProps) => (
+    // Height folds from Radix's measured content height; the panel inside fades with it.
     <CollapsibleContent
       className={cn(
-        "mt-4 text-sm",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-        className
+        "overflow-hidden outline-none",
+        "motion-safe:data-[state=open]:animate-collapsible-down motion-safe:data-[state=closed]:animate-collapsible-up",
+        "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+        "duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
       )}
       {...props}
     >
-      <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+      <div className={cn("mt-4 text-muted-foreground text-sm", className)} ref={ref}>
+        <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+      </div>
     </CollapsibleContent>
   )
 );
