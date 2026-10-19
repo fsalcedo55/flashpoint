@@ -2,7 +2,7 @@
 
 The trial's goal is to derive preferences from uploaded work so they can guide future AI-generated questionnaires. This suite evaluates whether the parser produces supported, appropriately scoped, reusable survey-writing rules. It does not evaluate questionnaire generation or claim that the model has been trained on the user.
 
-The [initial baseline](BASELINE.md) records current findings and limitations.
+The [initial baseline](BASELINE.md) and [prompt/model comparison](IMPROVEMENTS.md) record findings and limitations. The demo currently uses Claude Opus 5.5 provisionally; citation completeness remains an open quality issue.
 
 ## Run
 
@@ -17,7 +17,7 @@ Runs use the app's `AI_GATEWAY_API_KEY` and `AI_GATEWAY_MODEL`. Node loads `.env
 
 **These are paid AI calls**, separate from `pnpm test`. A full default run makes one judge calibration call, six extraction calls, and six grading calls (13 calls maximum), sequentially, with automatic retries disabled and a 90-second timeout per call. `--repeat` accepts 1–3; repeats are additional calls, not deterministic replay. Ordinary tests use mocks and never call a provider.
 
-JSON and readable Markdown reports are written after every completed case to a fresh directory under `.data/evals/` (ignored by Git). `--out <directory>` changes the parent directory. Reports contain fictional source text, raw suggestions, verifier rejections, grades, coverage, model IDs, prompt/rubric versions, source/code hashes, latency, token counts, and Git state. They do not include credentials or raw SDK errors. An interrupted report remains explicitly incomplete.
+JSON and readable Markdown reports are written after every completed case to a fresh directory under `.data/evals/` (ignored by Git). `--out <directory>` changes the parent directory. Reports contain fictional source text, raw suggestions, verifier rejections, grades, coverage, model IDs, generation settings, prompt/rubric versions, source/code hashes, latency, token counts, and Git state. They do not include credentials or raw SDK errors. An interrupted report remains explicitly incomplete.
 
 Exit codes: `0` all quality gates pass; `1` at least one quality failure; `2` setup, generation, or grading failed. Operational errors are never treated as passing cases. Rerun a failing case explicitly; earlier failures remain in their original report.
 

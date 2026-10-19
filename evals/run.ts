@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createGateway } from "ai";
 import { aiConfiguration, extractionModel } from "../src/server/ai-provider";
-import { generatePreferences, PROMPT_VERSION, verifyEvidence } from "../src/server/preference-extraction";
+import { EXTRACTION_SETTINGS, generatePreferences, PROMPT_VERSION, verifyEvidence } from "../src/server/preference-extraction";
 import { cases, SUITE_VERSION } from "./cases";
 import { loadCase } from "./fixtures";
 import { coverage, deterministicChecks, gradeChecks, gradeSuggestions, RUBRIC_VERSION } from "./grading";
@@ -35,7 +35,7 @@ async function main() {
   const hash = createHash("sha256");
   for (const path of paths) hash.update(path).update(await readFile(path));
   const report: Report = { startedAt: new Date().toISOString(), model: config.model, judgeModel,
-    promptVersion: PROMPT_VERSION, rubricVersion: RUBRIC_VERSION, suiteVersion: SUITE_VERSION,
+    promptVersion: PROMPT_VERSION, extractionSettings: EXTRACTION_SETTINGS, rubricVersion: RUBRIC_VERSION, suiteVersion: SUITE_VERSION,
     codeHash: hash.digest("hex"), gitCommit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     workingTreeDirty: Boolean(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()),
     nodeVersion: process.version, sdkVersion: JSON.parse(await readFile("node_modules/ai/package.json", "utf8")).version,

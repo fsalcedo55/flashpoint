@@ -21,6 +21,8 @@ cp -n .env.example .env.local
 
 Add your `AI_GATEWAY_API_KEY` to `.env.local` to enable preference extraction. This file is ignored by Git; keep the key there.
 
+The default extractor is Claude Opus 5.5. Change `AI_GATEWAY_MODEL` to use another Gateway model; see the [evaluation results and tradeoffs](evals/IMPROVEMENTS.md).
+
 ```bash
 pnpm dev
 ```

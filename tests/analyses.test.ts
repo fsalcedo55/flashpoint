@@ -49,7 +49,8 @@ test("the Gateway adapter sends authenticated structured requests and forwards p
     assert.equal(body.providerOptions.openai.store, false);
     assert.equal(body.responseFormat.type, "json");
     assert.ok(body.responseFormat.schema.properties.suggestions);
-    assert.equal(body.maxOutputTokens, 6000);
+    assert.equal(body.maxOutputTokens, 10_000);
+    assert.equal(body.reasoning, "medium");
     assert.ok(!body.tools?.length);
     return new Response(JSON.stringify(response({ suggestions: [candidate("d1s1")] })), { status: 200, headers: { "Content-Type": "application/json" } });
   } });

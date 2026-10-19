@@ -24,6 +24,7 @@ export type Report = {
   model: string;
   judgeModel: string;
   promptVersion: string;
+  extractionSettings?: { reasoning: string; maxOutputTokens: number; maxRetries: number; timeout: number };
   rubricVersion: string;
   suiteVersion: string;
   codeHash: string;
@@ -41,6 +42,7 @@ export function renderReport(report: Report) {
   const lines = ["# Questionnaire preference evaluation", "",
     `Started: ${report.startedAt}. Model: ${report.model}. Judge: ${report.judgeModel}.`,
     `Prompt: ${report.promptVersion}; rubric: ${report.rubricVersion}; suite: ${report.suiteVersion}.`,
+    ...(report.extractionSettings ? [`Extraction settings: ${report.extractionSettings.reasoning} reasoning; ${report.extractionSettings.maxOutputTokens} output tokens maximum; ${report.extractionSettings.timeout / 1000}s timeout; ${report.extractionSettings.maxRetries} retries.`] : []),
     `Commit: ${report.gitCommit}${report.workingTreeDirty ? " (working tree changes included in code hash)" : ""}. Code SHA-256: ${report.codeHash}.`,
     `Completed ${report.results.length}/${report.plannedRuns} runs${report.completedAt ? ` at ${report.completedAt}` : " so far (incomplete)"}.`, "",
     ...(report.setupError ? [`Setup error: ${report.setupError}`, ""] : []),
