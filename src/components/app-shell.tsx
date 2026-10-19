@@ -118,7 +118,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Button variant="outline" size="sm" onClick={clearError}>Dismiss</Button>
           </div>
         ) : null}
-        <p className="mb-6 text-xs text-muted-foreground">This session isn’t saved. Refreshing or closing this tab clears your workspace.</p>
         {children}
       </main>
       <p role="status" className="sr-only">{announcement}</p>
