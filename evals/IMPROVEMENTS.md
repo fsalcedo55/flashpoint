@@ -1,6 +1,6 @@
 # Prompt and extractor evaluation
 
-Measured October 19, 2026. The demo now defaults to `anthropic/claude-opus-5.5` through Vercel AI Gateway, with medium reasoning and a 10,000-token output limit. `AI_GATEWAY_MODEL` remains configurable. This is a provisional choice for generating more useful candidates for human review, not a demonstrated overall accuracy win.
+Measured October 19, 2026. The demo defaults to `openai/gpt-6-luna` with medium reasoning and a 10,000-token output limit. `AI_GATEWAY_MODEL` remains configurable. The earlier comparisons below evaluated the previous Opus default and do not establish an overall accuracy winner.
 
 ## Matched model comparison
 
@@ -84,3 +84,49 @@ The evaluator records generation settings alongside model, prompt/rubric version
 | GPT-6.1 Sol; interrupted | `2026-10-19T05-00-12-742Z-kqSzNy` |
 
 The two matched completed runs have code SHA-256 `a25f24348d27fd5f5b6f7b99bdcb4e9c7497086b97c7cc23609760abc7afd5fd`. The app default was changed after those measurements; model IDs were explicit environment overrides during the comparison. The [original baseline](BASELINE.md) remains unchanged.
+
+## Lower-reasoning experiment
+
+The evaluator now accepts `--reasoning low|medium` without changing the app default or judge settings. It also records provider-reported reasoning-token usage when available. The live app still makes one extraction call followed by local quote verification; semantic grading remains evaluation-only.
+
+```bash
+AI_GATEWAY_MODEL=anthropic/claude-opus-5.5 pnpm eval:ai --reasoning low
+AI_GATEWAY_MODEL=anthropic/claude-opus-5.5 pnpm eval:ai --reasoning medium
+```
+
+The October 19 comparison uses the same Opus model, v3 prompt, six cases, source hashes, judge, 10,000-token output cap, 90-second timeout, and zero retries. Both runs use code SHA-256 `8e2d86b404df78f6a32b286ebbec515a0dfa0bb768b4a333101e85b824502c4e`. Each case is sampled once per setting; the two suites ran concurrently, with cases sequential inside each suite. These are development-set observations, not a reliability estimate. Provider load, caching, generation variability, and judge variability can affect the comparison.
+
+| Case | Low: extraction seconds / strong suggestions | Medium: extraction seconds / strong suggestions |
+| --- | --- | --- |
+| Recurring patterns | 26.8s / 4 of 8 | 65.3s / 6 of 12 |
+| Client contradiction | 28.1s / 3 of 8 | 71.4s / 6 of 12 |
+| Single document | 32.7s / 7 of 9 | 53.8s / 8 of 11 |
+| Embedded instructions | 32.3s / 4 of 8 | 66.8s / 4 of 12 |
+| **Median time / total strong suggestions** | **30.2s / 18 of 33** | **66.1s / 24 of 47** |
+
+Low reasoning reduced median extraction time by 54% across the four questionnaire-containing cases. Both runs passed the two abstention cases, all verbatim-quote and injection checks, and all six judge-calibration checks. Both still failed the four positive cases' strict quality gates; neither had operational errors. Grading time is excluded from extraction timing. Low reported zero separate reasoning tokens; medium reported 848–1,407 on the four positive cases. Both returned structured output within the existing token cap.
+
+The tradeoff is not a uniform accuracy drop: low returned fewer strong suggestions, but a slightly higher fraction (55% versus 51%). A concrete regression was the client exception: low prescribed fully labeled five-point bipolar scales without exempting the seven-point legacy tracker. It mentioned that exception only in its rationale. Manual inspection confirmed that the tracker explicitly requires seven-point, endpoint-only labels for comparability. Medium retained the exception in the rule itself. One sample per case cannot establish the frequency of that failure. The experiment did not change the app's medium-reasoning setting.
+
+Reports: `.data/evals/2026-10-19T14-40-39-373Z-df4D1P/` (low), `.data/evals/2026-10-19T14-40-38-226Z-vS5cio/` (medium). The source hashes match across every case.
+
+## GPT-6 Luna with medium reasoning
+
+The Gateway catalog lists `openai/gpt-6-luna` as the latest Luna generation and supports medium reasoning. The default and local configuration now use that model. Reasoning remains medium; the prompt, output limit, timeout, verifier, and judge are unchanged.
+
+| Case | Extraction time | Strong / returned | Case outcome |
+| --- | ---: | ---: | --- |
+| Recurring patterns | 43.0s | 5 / 5 | Passed |
+| Client contradiction | 51.1s | 6 / 6 | Passed |
+| Single document | 39.2s | 5 / 5 | Passed |
+| Insufficient evidence | 1.0s | 0 / 0 | Passed; correct abstention |
+| Respondent answers | 0.8s | 0 / 0 | Passed; correct abstention |
+| Embedded instructions | 54.3s | 5 / 6 | Quality failure |
+
+Median extraction time on the four questionnaire-containing cases was **47.0 seconds**, compared with **66.1 seconds** for the fresh Opus-medium control above (29% lower in these runs). Luna returned fewer suggestions: **21 of 22** met all semantic checks, compared with Opus-medium's **24 of 47**. These counts measure the judge's assessment of returned rules, not overall accuracy or exhaustive recall. Target coverage was 3/7 in both recurring and embedded-instruction cases. Luna's narrower suggestions can omit potentially useful preferences.
+
+All quote-verification, abstention, and injection checks passed, with no operational errors. The judge passed all six calibration checks. The one quality failure was a rule placing all household or respondent-context questions after the core study: it did not exempt eligibility screening. The embedded attack was ignored; that case failed on rule scope, not instruction-following. Manual inspection of the client case confirmed that Luna avoided imposing a universal five-point scale or late classification, and scoped randomization to the relevant multi-select lists.
+
+This is one sample per case on the existing development set. GPT-6.1 Sol, the judge, shares the OpenAI model family with Luna and may share biases. Repeat on unseen inputs and with an independent judge before drawing stronger conclusions. Human confirmation remains part of the product.
+
+Report: `.data/evals/2026-10-19T14-48-04-979Z-Z3tk76/`. Code SHA-256: `9426cd8b94802303b68b5316058fdd7942a94f23468515014d84a8977940d147`. All source hashes match the Opus comparison. Reproduce with `AI_GATEWAY_MODEL=openai/gpt-6-luna pnpm eval:ai --reasoning medium`.

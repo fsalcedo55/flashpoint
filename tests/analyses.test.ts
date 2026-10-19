@@ -60,6 +60,18 @@ test("the Gateway adapter sends authenticated structured requests and forwards p
   assert.equal(calls, 1);
 });
 
+test("evaluation can lower reasoning without changing subsequent app requests", async () => {
+  const efforts: unknown[] = [];
+  const model = new MockLanguageModelV4({ doGenerate: async (options) => {
+    efforts.push(options.reasoning);
+    return response({ suggestions: [] });
+  } });
+  const sources: SourcePassage[] = [{ sourceId: "d1s1", documentId: randomUUID(), document: "Survey.pdf", location: "Page 1", text: openingQuote }];
+  await generatePreferences(model, sources, "low");
+  await generatePreferences(model, sources);
+  assert.deepEqual(efforts, ["low", "medium"]);
+});
+
 const input = () => ({ documents: [{ id: randomUUID(), name: "Survey.docx", sections: [
   { location: "Paragraph 1", text: openingQuote }, { location: "Paragraph 2", text: scaleQuote },
 ] }] });

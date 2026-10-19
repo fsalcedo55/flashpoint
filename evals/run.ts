@@ -15,9 +15,11 @@ import { calibrateJudge } from "./calibration";
 async function main() {
   const { values } = parseArgs({ options: {
     case: { type: "string", multiple: true }, repeat: { type: "string", default: "1" },
-    out: { type: "string", default: ".data/evals" }, list: { type: "boolean" },
+    out: { type: "string", default: ".data/evals" }, list: { type: "boolean" }, reasoning: { type: "string" },
   } });
   if (values.list) { cases.forEach((item) => console.log(`${item.id}: ${item.description}`)); return; }
+  const reasoning = values.reasoning ?? EXTRACTION_SETTINGS.reasoning;
+  if (reasoning !== "low" && reasoning !== "medium") throw new Error("--reasoning must be low or medium.");
   const repeats = Number(values.repeat);
   if (!Number.isInteger(repeats) || repeats < 1 || repeats > 3) throw new Error("--repeat must be 1, 2, or 3.");
   const selected = values.case?.length ? values.case.map((id) => {
@@ -35,7 +37,7 @@ async function main() {
   const hash = createHash("sha256");
   for (const path of paths) hash.update(path).update(await readFile(path));
   const report: Report = { startedAt: new Date().toISOString(), model: config.model, judgeModel,
-    promptVersion: PROMPT_VERSION, extractionSettings: EXTRACTION_SETTINGS, rubricVersion: RUBRIC_VERSION, suiteVersion: SUITE_VERSION,
+    promptVersion: PROMPT_VERSION, extractionSettings: { ...EXTRACTION_SETTINGS, reasoning }, rubricVersion: RUBRIC_VERSION, suiteVersion: SUITE_VERSION,
     codeHash: hash.digest("hex"), gitCommit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     workingTreeDirty: Boolean(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim()),
     nodeVersion: process.version, sdkVersion: JSON.parse(await readFile("node_modules/ai/package.json", "utf8")).version,
@@ -47,7 +49,7 @@ async function main() {
     await writeFile(resolve(directory, "report.md"), renderReport(report));
   };
   await save();
-  console.log(`Model: ${config.model}; judge: ${judgeModel}. ${report.plannedRuns} runs plus calibration, at most ${report.plannedRuns * 2 + 1} paid model calls; no retries.`);
+  console.log(`Model: ${config.model}; reasoning: ${reasoning}; judge: ${judgeModel}. ${report.plannedRuns} runs plus calibration, at most ${report.plannedRuns * 2 + 1} paid model calls; no retries.`);
   console.log(`Reports: ${directory}`);
   console.log("Checking judge against six labeled examples…");
   try {
@@ -73,12 +75,13 @@ async function main() {
       stage = "generation";
       console.log(`[${testCase.id} ${repetition}/${repeats}] generating…`);
       const start = performance.now();
-      const generated = await generatePreferences(model, result.sources!);
+      const generated = await generatePreferences(model, result.sources!, reasoning);
       result.generationMs = Math.round(performance.now() - start);
       result.raw = generated.output;
       const verified = verifyEvidence(generated.output, result.sources!);
       result.suggestions = verified.suggestions;
-      result.usage = { generationInput: generated.inputTokens ?? null, generationOutput: generated.outputTokens ?? null, judgeInput: null, judgeOutput: null };
+      result.usage = { generationInput: generated.inputTokens ?? null, generationOutput: generated.outputTokens ?? null,
+        generationReasoning: generated.reasoningTokens ?? null, judgeInput: null, judgeOutput: null };
       result.checks = deterministicChecks(testCase, result.raw, result.suggestions, verified.rejectedCount, result.sources!);
       stage = "semantic grading";
       console.log(`[${testCase.id} ${repetition}/${repeats}] grading ${result.suggestions.length} suggestions…`);

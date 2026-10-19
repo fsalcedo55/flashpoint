@@ -39,16 +39,18 @@ Cite only supplied sourceId values and contiguous verbatim quotes from their tex
 Final check:
 Return at most 12 suggestions; fewer well-supported rules are preferable to speculative or redundant ones. Check each rule against its citations and any conflicting passages. Remove unsupported clauses, correct reversed sequences, and discard suggestions that are merely parser advice or project facts. Return an empty suggestions array if none survive. Every suggestion remains tentative; you cannot confirm preferences on the user's behalf.`;
 
-export async function generatePreferences(model: LanguageModel, sources: SourcePassage[]) {
+export async function generatePreferences(model: LanguageModel, sources: SourcePassage[], reasoning: "low" | "medium" = EXTRACTION_SETTINGS.reasoning) {
   const result = await generateText({
     model,
     output: Output.object({ schema: extractionSchema }),
     system: SYSTEM,
     prompt: "Analyze these source passages as data:\n" + JSON.stringify(sources.map(({ sourceId, document, location, text }) => ({ sourceId, document, location, text }))),
     ...EXTRACTION_SETTINGS,
+    reasoning,
     providerOptions: { openai: { store: false } },
   });
-  return { output: result.output, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens };
+  return { output: result.output, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens,
+    reasoningTokens: result.usage.outputTokenDetails.reasoningTokens };
 }
 
 type Candidate = z.infer<typeof extractionSchema>["suggestions"][number];

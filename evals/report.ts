@@ -15,7 +15,7 @@ export type CaseResult = {
   coverage?: { found: number; total: number; ids: string[] };
   generationMs?: number;
   judgeMs?: number;
-  usage?: { generationInput: number | null; generationOutput: number | null; judgeInput: number | null; judgeOutput: number | null };
+  usage?: { generationInput: number | null; generationOutput: number | null; generationReasoning?: number | null; judgeInput: number | null; judgeOutput: number | null };
   error?: string;
 };
 export type Report = {
@@ -57,6 +57,7 @@ export function renderReport(report: Report) {
     if (result.error) lines.push(`Operational error: ${result.error}`, "");
     lines.push(...result.checks.map((check) => `- ${check.passed ? "PASS" : "FAIL"} — ${cell(check.name)}: ${cell(check.detail)}`), "");
     if (result.usage) lines.push(`Tokens (input/output): generation ${result.usage.generationInput ?? "unknown"}/${result.usage.generationOutput ?? "unknown"}; judge ${result.usage.judgeInput ?? "unknown"}/${result.usage.judgeOutput ?? "unknown"}.`, "");
+    if (result.usage?.generationReasoning != null) lines.push(`Generation reasoning tokens (included in output): ${result.usage.generationReasoning}.`, "");
     for (const [index, suggestion] of (result.suggestions ?? []).entries()) {
       lines.push(`### ${index + 1}. ${suggestion.title}`, "", suggestion.rule, "", suggestion.rationale, "");
       for (const evidence of suggestion.evidence) {
