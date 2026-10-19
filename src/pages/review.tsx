@@ -8,7 +8,6 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Label } from "@/components/ui/label";
 import { PageHeading } from "@/components/page-heading";
 import { PreferenceEditor } from "@/components/preference-editor";
-import { DeletePreference } from "@/components/delete-preference";
 import { useWorkspace } from "@/components/workspace-provider";
 import { cn } from "@/lib/utils";
 
@@ -105,10 +104,7 @@ export default function ReviewPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-background/60 p-5 sm:px-7">
                   {selected.status === "pending" ? (
                     <>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground" onClick={() => void decide(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /> Deny</Button>
-                        <DeletePreference preference={selected} />
-                      </div>
+                      <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground" onClick={() => void decide(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /> Deny</Button>
                       <div className="flex gap-2">
                         <PreferenceEditor preference={selected} />
                         <Button className="h-10 gap-2 px-4" onClick={() => void decide(selected.id, "confirmed")}><Check className="size-3.5" /> Confirm</Button>
@@ -116,10 +112,7 @@ export default function ReviewPage() {
                     </>
                   ) : (
                     <>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" className="h-10 gap-2 px-3 text-sm" onClick={() => void decide(selected.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
-                        <DeletePreference preference={selected} />
-                      </div>
+                      <Button variant="ghost" className="h-10 gap-2 px-3 text-sm" onClick={() => void decide(selected.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
                       <PreferenceEditor preference={selected} />
                     </>
                   )}
