@@ -35,7 +35,7 @@ export default function ProfilePage() {
                 <h2 className="mb-3 text-lg font-semibold">{category}</h2>
                 <div className="space-y-3">
                   {confirmed.filter((item) => item.category === category).map((item) => (
-                    <article key={item.id} className="rounded-xl border bg-white p-5 sm:p-6">
+                    <article key={item.id} className="group/preference rounded-xl border bg-white p-5 sm:p-6">
                       <div className="flex items-start gap-3">
                         <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-primary"><Check className="size-3" aria-hidden="true" /></span>
                         <div className="min-w-0">
@@ -44,7 +44,7 @@ export default function ProfilePage() {
                         </div>
                       </div>
                       <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t pt-4">
-                        <DeletePreference preference={item} className="mr-auto" />
+                        <DeletePreference preference={item} className="mr-auto text-muted-foreground/60 opacity-0 transition-[opacity,color] duration-150 group-hover/preference:opacity-100 group-focus-within/preference:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100" />
                         <Button variant="ghost" className="h-10 gap-2 px-3 text-sm text-muted-foreground" onClick={() => void decide(item.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
                         <PreferenceEditor preference={item} />
                       </div>
