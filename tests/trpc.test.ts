@@ -13,6 +13,7 @@ const client = createTRPCClient<AppRouter>({
     // Exercise the real router and HTTP streaming protocol without external requests.
     fetch: (url, options) => fetchRequestHandler({
       endpoint: "/api/trpc", req: new Request(url, options), router: appRouter,
+      createContext: () => ({ headers: new Headers({ host: "flashpoint.example", "x-real-ip": "192.0.2.1" }) }),
     }),
   })],
 });
@@ -26,15 +27,32 @@ function configureGateway(t: TestContext) {
   });
 }
 
+function configureDeployment(t: TestContext) {
+  const original = { NODE_ENV: process.env.NODE_ENV, VERCEL: process.env.VERCEL };
+  Object.assign(process.env, { NODE_ENV: "production", VERCEL: "1" });
+  t.after(() => {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+}
+
 function event(part: unknown) {
   return new TextEncoder().encode(`data: ${JSON.stringify(part)}\n\n`);
 }
 
 test("the analysis procedure streams notes before a verified result through the typed HTTP client", { timeout: 5000 }, async (t) => {
   configureGateway(t);
+  configureDeployment(t);
   const finish = Promise.withResolvers<void>();
   t.after(() => finish.resolve());
   const gateway = t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL, options?: RequestInit) => {
+    if (String(url) === "https://flashpoint.example/.well-known/vercel/rate-limit-api/flashpoint-analysis") {
+      assert.equal(new Headers(options?.headers).get("x-real-ip"), "192.0.2.1");
+      assert.ok(options?.signal);
+      return new Response(null, { status: 204 });
+    }
     assert.equal(String(url), "https://ai-gateway.vercel.sh/v4/ai/language-model");
     assert.equal(new Headers(options?.headers).get("ai-language-model-streaming"), "true");
     return new Response(new ReadableStream<Uint8Array>({
@@ -72,7 +90,55 @@ test("the analysis procedure streams notes before a verified result through the 
   assert.equal(completed.value.result.suggestions[0].evidence[0].quote, quote);
   assert.equal(completed.value.result.suggestions[0].status, "pending");
   assert.equal((await iterator.next()).done, true);
-  assert.equal(gateway.mock.callCount(), 1);
+  assert.equal(gateway.mock.callCount(), 2);
+});
+
+test("every analysis in a tRPC batch is rate-limited before any model request", async (t) => {
+  configureDeployment(t);
+  let httpRequests = 0;
+  const batchedClient = createTRPCClient<AppRouter>({ links: [httpBatchStreamLink({
+    url: "http://localhost/api/trpc",
+    fetch: (url, options) => {
+      httpRequests++;
+      return fetchRequestHandler({ endpoint: "/api/trpc", req: new Request(url, options), router: appRouter,
+        createContext: () => ({ headers: new Headers({ host: "flashpoint.example", "x-real-ip": "192.0.2.1" }) }) });
+    },
+  })] });
+  const requests = t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL) => {
+    assert.equal(String(url), "https://flashpoint.example/.well-known/vercel/rate-limit-api/flashpoint-analysis");
+    return new Response(null, { status: 429 });
+  });
+  await Promise.all(Array.from({ length: 6 }, () => assert.rejects(
+    batchedClient.analyses.start.mutate(input()),
+    (error: TRPCClientError<AppRouter>) => error.data?.code === "TOO_MANY_REQUESTS" && /10 minutes/.test(error.message),
+  )));
+  assert.equal(httpRequests, 1);
+  assert.equal(requests.mock.callCount(), 6);
+});
+
+test("missing rules and unavailable rate-limit services fail closed without exposing provider errors", async (t) => {
+  configureDeployment(t);
+  t.mock.method(console, "error", () => {});
+  t.mock.method(console, "warn", () => {});
+  for (const status of [404, 500, "timeout"] as const) {
+    const requests = t.mock.method(globalThis, "fetch", async (url: RequestInfo | URL) => {
+      assert.equal(String(url), "https://flashpoint.example/.well-known/vercel/rate-limit-api/flashpoint-analysis");
+      if (status === "timeout") throw new DOMException("private backend details", "TimeoutError");
+      return new Response(null, { status });
+    });
+    await assert.rejects(client.analyses.start.mutate(input()), (error: TRPCClientError<AppRouter>) =>
+      error.data?.code === "SERVICE_UNAVAILABLE" && error.message === "Analysis is temporarily unavailable. Please try again shortly.");
+    assert.equal(requests.mock.callCount(), 1);
+    requests.mock.restore();
+  }
+});
+
+test("configuration stays available without spending an analysis allowance", async (t) => {
+  configureDeployment(t);
+  const requests = t.mock.method(globalThis, "fetch", async () => { throw new Error("No external calls expected"); });
+  const configuration = await client.analyses.configuration.query();
+  assert.equal(configuration.provider, "Vercel AI Gateway");
+  assert.equal(requests.mock.callCount(), 0);
 });
 
 test("Zod rejects invalid procedure inputs before any AI call", async (t) => {

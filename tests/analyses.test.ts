@@ -128,7 +128,7 @@ test("tRPC validates analysis input and reports missing credentials", async () =
   const original = process.env.AI_GATEWAY_API_KEY;
   delete process.env.AI_GATEWAY_API_KEY;
   try {
-    const caller = appRouter.createCaller({});
+    const caller = appRouter.createCaller({ headers: new Headers() });
     assert.equal((await caller.analyses.configuration()).configured, false);
     await assert.rejects(caller.analyses.start({ documents: [] }), (error: TRPCError) => error.code === "BAD_REQUEST");
     const events = await caller.analyses.start(input());

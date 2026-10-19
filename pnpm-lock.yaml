@@ -196,6 +196,9 @@ importers:
       '@trpc/tanstack-react-query':
         specifier: ^11.19.0
         version: 11.19.0(@tanstack/react-query@5.104.4(@types/react@19.3.0)(react@19.3.0))(@trpc/client@11.19.0(@trpc/server@11.19.0(typescript@5.9.3))(typescript@5.9.3))(@trpc/server@11.19.0(typescript@5.9.3))(react@19.3.0)(typescript@5.9.3)
+      '@vercel/firewall':
+        specifier: ^1.2.6
+        version: 1.2.6
       ai:
         specifier: ^7.0.143
         version: 7.0.143(zod@4.6.7)
@@ -2299,6 +2302,10 @@ packages:
 
   '@upsetjs/venn.js@2.0.0':
     resolution: {integrity: sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw==}
+
+  '@vercel/firewall@1.2.6':
+    resolution: {integrity: sha512-89ybsa2rnVNdw6RI3jGOVvqUJaBj6Umm4IagC1o3PKtr/MXxBKOLek+yyUgF0csA0O5W+dzcpdIhKxVXhgVVtA==}
+    engines: {node: '>= 20'}
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -7250,6 +7257,8 @@ snapshots:
     optionalDependencies:
       d3-selection: 3.0.0
       d3-transition: 3.0.1(d3-selection@3.0.0)
+
+  '@vercel/firewall@1.2.6': {}
 
   '@vercel/oidc@3.2.0': {}
 

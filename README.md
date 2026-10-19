@@ -45,7 +45,19 @@ Open [localhost:3000](http://127.0.0.1:3000). Use the [sample questionnaires](te
 
 Uploads are processed per request; temporary server files are removed after reading. Originals and results stay in browser memory. Selected text is sent through Vercel AI Gateway for analysis; the API key stays on the server.
 
-The demo accepts PDF/DOCX files up to 4 MB each, leaving room for multipart overhead under [Vercel’s 4.5 MB request limit](https://vercel.com/docs/functions/limitations#request-body-size). Deployment needs the two AI environment variables above. The demo has no authentication or application-level rate limiting; use deployment access protection when sharing it privately.
+The demo accepts PDF/DOCX files up to 4 MB each, leaving room for multipart overhead under [Vercel’s 4.5 MB request limit](https://vercel.com/docs/functions/limitations#request-body-size). Deployment needs the two AI environment variables above.
+
+## Public deployment
+
+The analysis procedure checks Vercel Firewall before each model call, including each procedure in a tRPC batch. Before sharing a deployment:
+
+- Create a Vercel Firewall SDK rule (`@vercel/firewall`) with rate limit ID `flashpoint-analysis`: **5 requests per IP per 600 seconds**, fixed window, action **429 / rate limit**. Publish the rule and verify it in a protected preview first.
+- For protected previews, enable Protection Bypass for Automation and expose Vercel system environment variables as required by the [SDK](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting-sdk).
+- Give the demo's dedicated Gateway API key a **$10 budget with no automatic reset**. This budget also covers local tests and evaluations using that key. Gateway budgets are soft caps; already admitted requests can finish above the allowance.
+
+Local development skips the firewall check. Production requires Vercel and a working rule; missing rules, timeouts, and failed checks stop analysis. Upload parsing has size/content limits but no application rate limit yet. Workspace review and editing do not call the model.
+
+Vercel's counters are regional, and visitors sharing an IP share its allowance. The separate Gateway budget limits spending across IPs and regions. No application database is needed.
 
 ## Checks
 
