@@ -8,7 +8,8 @@
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "eval:ai": "node --env-file-if-exists=.env.local --import tsx evals/run.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.116",

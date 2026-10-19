@@ -31,8 +31,7 @@ function publicAnalysisError(error: unknown) {
 }
 
 // The request contains all source text. Nothing is retained between requests.
-// Tests inject a model here; requests cannot select a test model or bypass the provider.
-export async function analyzeDocuments(input: AnalysisInput, testing?: { model: LanguageModel }): Promise<AnalysisResult> {
+export function prepareAnalysisSources(input: AnalysisInput): SourcePassage[] {
   const parsed = analysisInputSchema.safeParse(input);
   if (!parsed.success) throw new TRPCError({ code: "BAD_REQUEST", message: "Provide one to five documents with extracted text." });
   const { documents } = parsed.data;
@@ -48,6 +47,12 @@ export async function analyzeDocuments(input: AnalysisInput, testing?: { model: 
   if (JSON.stringify(sources).length > MAX_ANALYSIS_CHARACTERS) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "This selection exceeds 80,000 characters including source references. Choose fewer or smaller documents; no text has been sent." });
   }
+  return sources;
+}
+
+// Tests inject a model here; requests cannot select a test model or bypass the provider.
+export async function analyzeDocuments(input: AnalysisInput, testing?: { model: LanguageModel }): Promise<AnalysisResult> {
+  const sources = prepareAnalysisSources(input);
   const model = testing?.model ?? extractionModel();
   try {
     const generated = await generatePreferences(model, sources);
@@ -60,7 +65,7 @@ export async function analyzeDocuments(input: AnalysisInput, testing?: { model: 
       suggestions: verified.suggestions.map((suggestion) => ({
         ...suggestion, id: randomUUID(), suggestedRule: suggestion.rule, status: "pending",
         evidence: suggestion.evidence.map((source) => ({ ...source,
-          document: documents.find((document) => document.id === source.documentId)!.name })),
+          document: sources.find((passage) => passage.documentId === source.documentId)!.document })),
       })),
     };
   } catch (error) {

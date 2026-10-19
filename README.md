@@ -42,4 +42,6 @@ pnpm build
 
 Tests cover extraction, evidence verification, session isolation, and review decisions using mocked AI calls. No database or credentials are needed.
 
+Run `pnpm eval:ai` for the separate, paid [AI quality evaluation](evals/README.md). It checks recurring patterns, contradictions, limited evidence, and embedded instructions using fictional documents.
+
 See [design.md](design.md) for the Flashpoint visual reference.
