@@ -45,7 +45,7 @@ export function SelectionBar({ analysis, selectedIds, onClear, disabled }: { ana
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 px-5 sm:px-8 lg:left-60 lg:px-10">
       <div role="region" aria-label="Selected documents" className="pointer-events-auto mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-transparent bg-foreground py-2 pr-2 pl-5 sm:rounded-full text-sm text-background shadow-xl ring-1 ring-foreground/10 duration-200 ease-[cubic-bezier(0.2,0,0,1)] animate-in fade-in-0 motion-safe:slide-in-from-bottom-2">
-        <p className="tabular-nums"><span className="font-medium">{selectedIds.length} of {MAX_ANALYSIS_DOCUMENTS}</span> selected</p>
+        <p className="tabular-nums"><span className="font-medium">{selectedIds.length}</span> selected</p>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" className="text-background/80 hover:bg-background/10 hover:text-background" onClick={onClear} disabled={busy}>Clear</Button>
           {available ? (
@@ -53,7 +53,7 @@ export function SelectionBar({ analysis, selectedIds, onClear, disabled }: { ana
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon-sm" className="text-background/80 hover:bg-background/10 hover:text-background" aria-label="How documents are analyzed"><Info /></Button>
               </TooltipTrigger>
-              <TooltipContent className="bg-popover text-popover-foreground ring-1 ring-foreground/10">Selected text and filenames are sent through {configuration.data?.provider} to {configuration.data?.model}. Suggestions are saved for review.</TooltipContent>
+              <TooltipContent className="bg-popover text-popover-foreground ring-1 ring-foreground/10">Select up to {MAX_ANALYSIS_DOCUMENTS} documents per analysis. Selected text and filenames are sent through {configuration.data?.provider} to {configuration.data?.model}. Suggestions are saved for review.</TooltipContent>
             </Tooltip>
           ) : null}
           <Button disabled={disabled || busy || !available} onClick={() => start.mutate({ documentIds: selectedIds }, { onSuccess: onClear })} className="h-9 gap-2 bg-background pr-4 pl-3.5 text-foreground hover:bg-background/90">
