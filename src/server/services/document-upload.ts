@@ -3,7 +3,7 @@ import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import formidable from "formidable";
-import { MAX_FILE_BYTES } from "../lib/documents";
+import { MAX_FILE_BYTES } from "../../lib/documents";
 import { DocumentError } from "./document-extraction";
 
 export async function readUpload(request: IncomingMessage) {

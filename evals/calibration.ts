@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import type { SourcePassage, VerifiedSuggestion } from "../src/server/preference-extraction";
+import type { SourcePassage, VerifiedSuggestion } from "../src/server/ai/preference-extraction";
 import { gradeSuggestions, type Check } from "./grading";
 
 // Independent labeled examples sanity-check the judge before it grades model outputs.

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { GatewayError } from "@ai-sdk/gateway";
 import { APICallError, NoObjectGeneratedError, type LanguageModel } from "ai";
-import { analysisInputSchema, MAX_ANALYSIS_CHARACTERS, type AnalysisInput, type AnalysisResult } from "../lib/analysis";
-import { extractionModel } from "./ai-provider";
-import { generatePreferences, streamPreferences, verifyEvidence, type SourcePassage } from "./preference-extraction";
+import { analysisInputSchema, MAX_ANALYSIS_CHARACTERS, type AnalysisInput, type AnalysisResult } from "../../lib/analysis";
+import { extractionModel } from "../ai/provider";
+import { generatePreferences, streamPreferences, verifyEvidence, type SourcePassage } from "../ai/preference-extraction";
 
 function publicAnalysisError(error: unknown) {
   if (error instanceof TRPCError) return error.message;

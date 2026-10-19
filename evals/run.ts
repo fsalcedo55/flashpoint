@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createGateway } from "ai";
-import { aiConfiguration, extractionModel } from "../src/server/ai-provider";
-import { EXTRACTION_SETTINGS, generatePreferences, PROMPT_VERSION, verifyEvidence } from "../src/server/preference-extraction";
+import { aiConfiguration, extractionModel } from "../src/server/ai/provider";
+import { EXTRACTION_SETTINGS, generatePreferences, PROMPT_VERSION, verifyEvidence } from "../src/server/ai/preference-extraction";
 import { cases, SUITE_VERSION } from "./cases";
 import { loadCase } from "./fixtures";
 import { coverage, deterministicChecks, gradeChecks, gradeSuggestions, RUBRIC_VERSION } from "./grading";
@@ -33,7 +33,7 @@ async function main() {
   const judgeModel = process.env.AI_EVAL_JUDGE_MODEL?.trim() || "openai/gpt-6.1-sol";
   const model = extractionModel();
   const judge = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY?.trim() })(judgeModel);
-  const paths = ["src/server/preference-extraction.ts", "src/server/analyses.ts", "src/server/ai-provider.ts", "src/server/document-extraction.ts", "src/lib/analysis.ts", "src/lib/documents.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "tests/document-fixtures.ts"];
+  const paths = ["src/server/ai/preference-extraction.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/server/services/document-extraction.ts", "src/lib/analysis.ts", "src/lib/documents.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "tests/document-fixtures.ts"];
   const hash = createHash("sha256");
   for (const path of paths) hash.update(path).update(await readFile(path));
   const report: Report = { startedAt: new Date().toISOString(), model: config.model, judgeModel,

@@ -1,6 +1,6 @@
 import mammoth from "mammoth";
 import { fromBufferPromise } from "yauzl";
-import { MAX_FILE_BYTES, type DocumentSection, type DocumentType } from "../lib/documents";
+import { MAX_FILE_BYTES, type DocumentSection, type DocumentType } from "../../lib/documents";
 
 const MAX_CHARACTERS = 500_000;
 const MAX_PAGES = 200;

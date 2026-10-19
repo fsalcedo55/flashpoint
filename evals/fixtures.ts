@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { extractDocument, validateUpload } from "../src/server/document-extraction";
-import { prepareAnalysisSources } from "../src/server/analyses";
+import { extractDocument, validateUpload } from "../src/server/services/document-extraction";
+import { prepareAnalysisSources } from "../src/server/services/analyses";
 import { docxFixture } from "../tests/document-fixtures";
 import type { EvalCase } from "./cases";
 

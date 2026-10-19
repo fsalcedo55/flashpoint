@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { DocumentError, extractDocument, validateUpload } from "@/server/document-extraction";
-import { readUpload } from "@/server/document-upload";
+import { DocumentError, extractDocument, validateUpload } from "@/server/services/document-extraction";
+import { readUpload } from "@/server/services/document-upload";
 
 export const config = { api: { bodyParser: false }, maxDuration: 120 };
 export default async function handler(request: NextApiRequest, response: NextApiResponse) {

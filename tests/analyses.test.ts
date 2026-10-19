@@ -4,9 +4,9 @@ import { test } from "node:test";
 import { APICallError, createGateway } from "ai";
 import { MockLanguageModelV4, simulateReadableStream } from "ai/test";
 import { TRPCError } from "@trpc/server";
-import { analyzeDocuments } from "../src/server/analyses";
-import { extractionSchema, generatePreferences, verifyEvidence, type SourcePassage } from "../src/server/preference-extraction";
-import { appRouter } from "../src/server/router";
+import { analyzeDocuments } from "../src/server/services/analyses";
+import { extractionSchema, generatePreferences, verifyEvidence, type SourcePassage } from "../src/server/ai/preference-extraction";
+import { appRouter } from "../src/server/routers/_app";
 
 
 const openingQuote = "1. Which brands come to mind?\n2. Which of these brands do you recognize?";
@@ -124,14 +124,15 @@ test("provider errors are sanitized and a failed request can be retried", async 
   assert.equal((await analyzeDocuments(input(), { model: fixtureModel({ suggestions: [candidate("d1s1")] }) })).suggestions.length, 1);
 });
 
-test("tRPC validates requests and reports missing credentials without a database", async () => {
+test("tRPC validates analysis input and reports missing credentials", async () => {
   const original = process.env.AI_GATEWAY_API_KEY;
   delete process.env.AI_GATEWAY_API_KEY;
   try {
     const caller = appRouter.createCaller({});
     assert.equal((await caller.analyses.configuration()).configured, false);
     await assert.rejects(caller.analyses.start({ documents: [] }), (error: TRPCError) => error.code === "BAD_REQUEST");
-    await assert.rejects(caller.analyses.start(input()), (error: TRPCError) => error.code === "PRECONDITION_FAILED");
+    const events = await caller.analyses.start(input());
+    await assert.rejects(Array.fromAsync(events), (error: TRPCError) => error.code === "PRECONDITION_FAILED");
   } finally {
     if (original === undefined) delete process.env.AI_GATEWAY_API_KEY;
     else process.env.AI_GATEWAY_API_KEY = original;

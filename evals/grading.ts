@@ -1,6 +1,6 @@
 import { generateText, Output, type LanguageModel } from "ai";
 import { z } from "zod";
-import type { SourcePassage, VerifiedSuggestion } from "../src/server/preference-extraction";
+import type { SourcePassage, VerifiedSuggestion } from "../src/server/ai/preference-extraction";
 import type { Criterion, EvalCase } from "./cases";
 
 export const RUBRIC_VERSION = "survey-workstyle-rubric-v2";

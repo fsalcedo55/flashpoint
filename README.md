@@ -10,6 +10,20 @@ Each tab has its own temporary workspace in React state. Navigating within the a
 
 TypeScript (strict), Next.js Pages Router, Tailwind CSS, shadcn/ui, tRPC, and Vercel AI SDK with AI Gateway.
 
+The analysis router exposes configuration and a Zod-validated streaming mutation. File uploads use a separate multipart route with file size and content checks.
+
+## Code organization
+
+```text
+src/server/
+├── routers/   # tRPC procedures, input validation, and root router
+├── services/  # Analysis workflow, progress streaming, and document processing
+├── ai/        # Gateway configuration, prompts, model calls, and evidence checks
+└── trpc.ts    # Shared tRPC initialization and procedure helpers
+```
+
+Routers delegate work to services; analysis services use the AI modules. Browser-safe schemas and workspace logic live in `src/lib`, UI components in `src/components`, and route entry points in `src/pages`. Tests and AI evaluations reuse the server functions directly.
+
 ## Run locally
 
 Requires Node.js 24.21.0 (see `.nvmrc`), pnpm 12.14.0, and a Vercel AI Gateway key for analysis.

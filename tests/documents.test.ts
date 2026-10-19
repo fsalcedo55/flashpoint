@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { strToU8, zipSync } from "fflate";
 import { MAX_FILE_BYTES } from "../src/lib/documents";
-import { DocumentError, extractDocument, validateUpload } from "../src/server/document-extraction";
-import { readUpload } from "../src/server/document-upload";
+import { DocumentError, extractDocument, validateUpload } from "../src/server/services/document-extraction";
+import { readUpload } from "../src/server/services/document-upload";
 import { docxFixture, pdfFixture } from "./document-fixtures";
 
 async function extract(name: string, buffer: Buffer) { return extractDocument(buffer, validateUpload(name, buffer)); }

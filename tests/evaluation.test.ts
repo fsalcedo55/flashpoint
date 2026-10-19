@@ -5,7 +5,7 @@ import { calibrateJudge } from "../evals/calibration";
 import { cases } from "../evals/cases";
 import { loadCase } from "../evals/fixtures";
 import { coverage, deterministicChecks, gradeChecks, validateGrade, type Grade } from "../evals/grading";
-import type { VerifiedSuggestion } from "../src/server/preference-extraction";
+import type { VerifiedSuggestion } from "../src/server/ai/preference-extraction";
 
 const simpleCase = { id: "unit", description: "Test case", files: [], patterns: [{ id: "scales", description: "Labeled scales" }], criteria: [{ id: "scope", description: "Preserve scope" }] };
 const grade = (): Grade => ({

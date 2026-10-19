@@ -32,8 +32,7 @@ export type AnalysisRun = {
   finishedAt?: number;
 };
 
-// One line of the analysis stream: notes as they arrive, then the result or an error.
+// tRPC streams notes and the verified result; failures use its standard error handling.
 export type AnalysisStreamEvent =
   | { type: "note"; text: string }
-  | { type: "result"; result: AnalysisResult }
-  | { type: "error"; message: string };
+  | { type: "result"; result: AnalysisResult };
