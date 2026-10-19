@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { GatewayError } from "@ai-sdk/gateway";
 import { APICallError, NoObjectGeneratedError, type LanguageModel } from "ai";
-import { analysisInputSchema, MAX_ANALYSIS_CHARACTERS, type AnalysisInput, type AnalysisResult } from "../../lib/analysis";
+import { prepareAnalysisSources, type AnalysisInput, type AnalysisResult } from "../../lib/analysis";
 import { extractionModel } from "../ai/provider";
-import { generatePreferences, streamPreferences, verifyEvidence, type SourcePassage } from "../ai/preference-extraction";
+import { generatePreferences, streamPreferences, verifyEvidence } from "../ai/preference-extraction";
 
 function publicAnalysisError(error: unknown) {
   if (error instanceof TRPCError) return error.message;
@@ -30,30 +30,15 @@ function publicAnalysisError(error: unknown) {
   return "Analysis could not be completed. No new suggestions were added. Try again.";
 }
 
-// The request contains all source text. Nothing is retained between requests.
-export function prepareAnalysisSources(input: AnalysisInput): SourcePassage[] {
-  const parsed = analysisInputSchema.safeParse(input);
-  if (!parsed.success) throw new TRPCError({ code: "BAD_REQUEST", message: "Provide one to five documents with extracted text." });
-  const { documents } = parsed.data;
-  if (new Set(documents.map((document) => document.id)).size !== documents.length) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Select different documents." });
-  }
-  if (documents.some((document) => !document.sections.some((section) => section.text.trim()))) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "Each document needs readable text." });
-  }
-  const sources: SourcePassage[] = documents.flatMap((document, documentIndex) => document.sections.map((section, index) => ({
-    sourceId: `d${documentIndex + 1}s${index + 1}`, documentId: document.id, document: document.name, ...section,
-  }))).filter((source) => source.text.trim());
-  if (JSON.stringify(sources).length > MAX_ANALYSIS_CHARACTERS) {
-    throw new TRPCError({ code: "BAD_REQUEST", message: "This selection exceeds 80,000 characters including source references. Choose fewer or smaller documents; no text has been sent." });
-  }
-  return sources;
-}
-
 // Tests inject a model here; requests cannot select a test model or bypass the provider.
 // With `onNote`, the model is streamed and its reasoning summary is relayed as it arrives.
 export async function analyzeDocuments(input: AnalysisInput, options: { model?: LanguageModel; onNote?: (text: string) => void; signal?: AbortSignal } = {}): Promise<AnalysisResult> {
-  const sources = prepareAnalysisSources(input);
+  let sources: ReturnType<typeof prepareAnalysisSources>;
+  try {
+    sources = prepareAnalysisSources(input);
+  } catch (error) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: (error as Error).message });
+  }
   const model = options.model ?? extractionModel();
   try {
     const generated = options.onNote

@@ -1,4 +1,5 @@
-import type { SourcePassage, VerifiedSuggestion, extractionSchema } from "../src/server/ai/preference-extraction";
+import type { SourcePassage } from "../src/lib/analysis";
+import type { VerifiedSuggestion, extractionSchema } from "../src/server/ai/preference-extraction";
 import type { z } from "zod";
 import type { Grade, Check } from "./grading";
 

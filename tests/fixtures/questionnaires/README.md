@@ -17,7 +17,7 @@ Validation: all 58 question prompts passed through the app's local DOCX extracto
 
 1. Upload the first three DOCX files from this pack through Your documents. Refreshing clears this temporary session.
 2. Open View text for each and check that question prompts, complete response scales, and programming notes appear. DOCX citations use paragraph locations rather than page numbers.
-3. Select only these three documents, then choose Find preferences. Keep the older miniature fixtures out of the selection so their evidence does not contaminate this comparison.
+3. Select only these three documents, then choose Find preferences.
 4. In Review preferences, inspect the source quotations before confirming anything. The suggestions below are plausible targets, not a required exact answer or exhaustive list.
 
 The model may group, qualify, or omit patterns. Judge the rule and its cited evidence; do not grade by exact wording or number of suggestions. A factually present pattern with an unrelated supporting quote is still a weak result.

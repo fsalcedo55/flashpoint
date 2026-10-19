@@ -1,3 +1,4 @@
+import { prepareAnalysisSources, type SourcePassage } from "../src/lib/analysis";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
@@ -5,7 +6,7 @@ import { APICallError, createGateway } from "ai";
 import { MockLanguageModelV4, simulateReadableStream } from "ai/test";
 import { TRPCError } from "@trpc/server";
 import { analyzeDocuments } from "../src/server/services/analyses";
-import { extractionSchema, generatePreferences, verifyEvidence, type SourcePassage } from "../src/server/ai/preference-extraction";
+import { extractionSchema, generatePreferences, verifyEvidence } from "../src/server/ai/preference-extraction";
 import { appRouter } from "../src/server/routers/_app";
 
 
@@ -110,6 +111,18 @@ test("empty, duplicate, oversized and unreadable selections are rejected before 
   ];
   for (const value of cases) await assert.rejects(analyzeDocuments(value, { model }), TRPCError);
   assert.equal(calls, 0);
+});
+
+test("shared analysis preflight counts source references and keeps citation IDs stable across blank sections", () => {
+  const document = input().documents[0];
+  const prepared = prepareAnalysisSources({ documents: [{ ...document, sections: [
+    { location: "Paragraph 1", text: " " }, { location: "Paragraph 2", text: openingQuote },
+  ] }] });
+  assert.deepEqual(prepared, [{ sourceId: "d1s2", documentId: document.id, document: document.name,
+    location: "Paragraph 2", text: openingQuote }]);
+  assert.throws(() => prepareAnalysisSources({ documents: [{ ...document,
+    sections: [{ location: "Page 1", text: "x".repeat(79_999) }],
+  }] }), /including source references/);
 });
 
 test("unverifiable and malformed output fail; an empty suggestion list is valid", async () => {

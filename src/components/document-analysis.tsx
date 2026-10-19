@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Streamdown } from "streamdown";
 import { ArrowRight, Check, ChevronDown, Info, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { IconSwap } from "@/components/ui/icon-swap";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TileGrid } from "@/components/tile-grid";
-import { Reasoning, ReasoningContent, ReasoningTrigger, useReasoning } from "@/components/ai-elements/reasoning";
-import { Shimmer } from "@/components/ai-elements/shimmer";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useWorkspace } from "@/components/workspace-provider";
 import type { AnalysisRun } from "@/lib/analysis";
 import { MAX_ANALYSIS_DOCUMENTS } from "@/lib/analysis";
@@ -77,17 +77,6 @@ function formatDuration(seconds: number) {
   return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
-// "Notes" toggle in the meta line; must sit inside <Reasoning> to read its open state.
-function NotesToggle() {
-  const { isOpen } = useReasoning();
-  return (
-    <ReasoningTrigger className="w-fit shrink-0 gap-0.5 rounded text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-      Notes
-      <ChevronDown className={cn("size-3 transition-transform duration-150", isOpen && "rotate-180")} aria-hidden="true" />
-    </ReasoningTrigger>
-  );
-}
-
 // Two lines in every state, so the row keeps its shape as it runs:
 // the outcome and its action, then muted metadata (sources, time, notes toggle).
 // The model's working notes fold out underneath; they're never styled as conclusions.
@@ -101,6 +90,7 @@ function AnalysisRow({ run, listShownAt }: { run: AnalysisRun; listShownAt: numb
   const [entered] = useState(() => Date.now() - listShownAt > 500);
   const [wasRunning] = useState(run.status === "running");
   const running = run.status === "running";
+  const [notesOpen, setNotesOpen] = useState(running);
   const stage = useStage(running && !run.notes);
   const topic = run.notes ? currentTopic(run.notes) : stages[stage];
   const duration = run.startedAt && run.finishedAt ? Math.max(1, Math.ceil((run.finishedAt - run.startedAt) / 1000)) : undefined;
@@ -112,17 +102,23 @@ function AnalysisRow({ run, listShownAt }: { run: AnalysisRun; listShownAt: numb
   // Keep the newest notes in view while they stream.
   useEffect(() => {
     if (running && notesRef.current) notesRef.current.scrollTop = notesRef.current.scrollHeight;
-  }, [running, run.notes]);
+  }, [running, run.notes, notesOpen]);
+  // Fold once after completion; reopening the notes afterwards stays under user control.
+  useEffect(() => {
+    if (running || !wasRunning) return;
+    const timer = setTimeout(() => setNotesOpen(false), 1000);
+    return () => clearTimeout(timer);
+  }, [running, wasRunning]);
   const reveal = wasRunning && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4";
 
   return (
     <li ref={ref} className={cn("py-3", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
-      <Reasoning isStreaming={running} duration={duration} className="mb-0">
+      <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
         <div className="flex min-h-9 items-center justify-between gap-3">
           {running ? (
             <p role="status" aria-live="polite" className="flex min-w-0 items-center gap-3 text-sm">
-              <TileGrid mode="searching" />
-              <Shimmer key={topic} as="span" duration={1.6} className="truncate animate-in fade-in-0 duration-300">{topic + "…"}</Shimmer>
+              <TileGrid />
+              <span key={topic} className="analysis-topic truncate">{topic}…</span>
             </p>
           ) : null}
           {run.status === "completed" ? (
@@ -145,15 +141,22 @@ function AnalysisRow({ run, listShownAt }: { run: AnalysisRun; listShownAt: numb
           <span className="truncate" title={names}>{names}</span>
           {duration && !running ? <><span aria-hidden="true">·</span><span className="shrink-0 tabular-nums">{formatDuration(duration)}</span></> : null}
           {run.rejectedCount && !running ? <><span aria-hidden="true">·</span><span className="shrink-0">{run.rejectedCount} unverified dropped</span></> : null}
-          {run.notes ? <><span aria-hidden="true">·</span><NotesToggle /></> : null}
+          {run.notes ? <>
+            <span aria-hidden="true">·</span>
+            <CollapsibleTrigger className="flex shrink-0 items-center gap-0.5 rounded text-xs hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+              Notes <ChevronDown className={cn("size-3 transition-transform duration-150", notesOpen && "rotate-180")} aria-hidden="true" />
+            </CollapsibleTrigger>
+          </> : null}
         </div>
 
         {run.notes ? (
-          <ReasoningContent ref={notesRef} className="mt-2 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-secondary px-3 py-2 text-xs leading-5 text-muted-foreground [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4">
-            {run.notes}
-          </ReasoningContent>
+          <CollapsibleContent className="overflow-hidden outline-none motion-safe:data-[state=open]:animate-collapsible-down motion-safe:data-[state=closed]:animate-collapsible-up duration-200 ease-out">
+            <div ref={notesRef} className="mt-2 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-secondary px-3 py-2 text-xs leading-5 text-muted-foreground [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4">
+              <Streamdown isAnimating={running}>{run.notes}</Streamdown>
+            </div>
+          </CollapsibleContent>
         ) : null}
-      </Reasoning>
+      </Collapsible>
     </li>
   );
 }

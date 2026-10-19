@@ -1,10 +1,10 @@
 import { generateText, Output, streamText, type LanguageModel } from "ai";
 import { z } from "zod";
+import type { SourcePassage } from "../../lib/analysis";
 
 export const PROMPT_VERSION = "survey-preferences-v3";
 // The budget includes reasoning tokens as well as the final structured response.
 export const EXTRACTION_SETTINGS = { reasoning: "medium", maxOutputTokens: 10_000, maxRetries: 0, timeout: 90_000 } as const;
-export type SourcePassage = { sourceId: string; documentId: string; document: string; location: string; text: string };
 
 export const extractionSchema = z.object({
   suggestions: z.array(z.object({

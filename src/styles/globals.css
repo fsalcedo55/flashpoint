@@ -2,6 +2,25 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+.analysis-topic {
+  color: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .analysis-topic {
+    color: transparent;
+    background: linear-gradient(90deg, var(--muted-foreground) 35%, var(--foreground) 50%, var(--muted-foreground) 65%);
+    background-size: 200% 100%;
+    background-clip: text;
+    animation: analysis-shimmer 1.6s linear infinite;
+  }
+}
+
+@keyframes analysis-shimmer {
+  from { background-position: 100% center; }
+  to { background-position: 0% center; }
+}
+
 :root {
   color-scheme: light;
   --background: #fbfaf8;

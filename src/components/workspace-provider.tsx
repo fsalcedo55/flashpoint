@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC, useTRPCClient } from "@/lib/trpc";
-import { MAX_ANALYSIS_DOCUMENTS, type AnalysisResult } from "@/lib/analysis";
+import { MAX_ANALYSIS_DOCUMENTS, prepareAnalysisSources, type AnalysisResult } from "@/lib/analysis";
 import { extractedDocumentSchema, formatFileSize, MAX_FILE_BYTES, MAX_FILES, type SessionDocument } from "@/lib/documents";
 import type { PreferenceStatus } from "@/lib/preferences";
 import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, type WorkspaceState } from "@/lib/workspace";
@@ -126,6 +126,12 @@ function useSessionWorkspace() {
     if (current.current.analyses.some((run) => run.key === key && run.status === "completed")) {
       clearSelection(); setAnnouncement("This selection has already been analyzed in this session."); return;
     }
+    const input = { documents: selected.map(({ id, name, sections }) => ({ id, name, sections })) };
+    try {
+      prepareAnalysisSources(input);
+    } catch (cause) {
+      setError((cause as Error).message); return;
+    }
     const id = crypto.randomUUID();
     const session = generation.current;
     const controller = new AbortController();
@@ -145,9 +151,7 @@ function useSessionWorkspace() {
       update((previous) => ({ ...previous, analyses: previous.analyses.map((run) => run.id === id ? { ...run, notes: (run.notes ?? "") + text } : run) }));
     };
     try {
-      const events = await trpcClient.analyses.start.mutate({
-        documents: selected.map(({ id, name, sections }) => ({ id, name, sections })),
-      }, {
+      const events = await trpcClient.analyses.start.mutate(input, {
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(110_000)]) });
       let result: AnalysisResult | undefined;
       for await (const event of events) {
