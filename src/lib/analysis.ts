@@ -26,4 +26,14 @@ export type AnalysisRun = {
   suggestionCount: number;
   rejectedCount: number;
   error?: string;
+  // The model's reasoning summary, streamed while the run is in flight and kept afterwards.
+  notes?: string;
+  startedAt?: number;
+  finishedAt?: number;
 };
+
+// One line of the analysis stream: notes as they arrive, then the result or an error.
+export type AnalysisStreamEvent =
+  | { type: "note"; text: string }
+  | { type: "result"; result: AnalysisResult }
+  | { type: "error"; message: string };

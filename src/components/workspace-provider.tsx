@@ -1,10 +1,31 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTRPC, useTRPCClient } from "@/lib/trpc";
-import { MAX_ANALYSIS_DOCUMENTS } from "@/lib/analysis";
+import { useTRPC } from "@/lib/trpc";
+import { MAX_ANALYSIS_DOCUMENTS, type AnalysisStreamEvent } from "@/lib/analysis";
 import { extractedDocumentSchema, formatFileSize, MAX_FILE_BYTES, MAX_FILES, type SessionDocument } from "@/lib/documents";
 import type { PreferenceStatus } from "@/lib/preferences";
 import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, type WorkspaceState } from "@/lib/workspace";
+import type { AnalysisRun } from "@/lib/analysis";
+
+// Newline-delimited JSON events from the analysis stream.
+async function* readEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<AnalysisStreamEvent> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let newline = buffer.indexOf("\n");
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      if (line) yield JSON.parse(line) as AnalysisStreamEvent;
+      newline = buffer.indexOf("\n");
+    }
+  }
+  if (buffer.trim()) yield JSON.parse(buffer) as AnalysisStreamEvent;
+}
 
 function useSessionWorkspace() {
   const [state, setState] = useState(emptyWorkspace);
@@ -17,7 +38,6 @@ function useSessionWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const trpc = useTRPC();
-  const client = useTRPCClient();
   const configuration = useQuery(trpc.analyses.configuration.queryOptions());
 
   function update(change: (previous: WorkspaceState) => WorkspaceState) {
@@ -131,17 +151,46 @@ function useSessionWorkspace() {
     requests.current.add(controller);
     setError(null);
     update((previous) => ({ ...previous, analyses: [{ id, key, sources: selected.map(({ id, name }) => ({ id, name })),
-      status: "running", suggestionCount: 0, rejectedCount: 0 }, ...previous.analyses.filter((run) => run.key !== key)] }));
+      status: "running", suggestionCount: 0, rejectedCount: 0, startedAt: Date.now() }, ...previous.analyses.filter((run) => run.key !== key)] }));
+    const patch = (change: Partial<AnalysisRun>) => update((previous) => ({ ...previous,
+      analyses: previous.analyses.map((run) => run.id === id ? { ...run, ...change } : run) }));
+    // Reasoning arrives in small deltas; batch them so each one doesn't re-render the workspace.
+    let pendingNotes = "";
+    let flush: ReturnType<typeof setTimeout> | undefined;
+    const flushNotes = () => {
+      flush = undefined;
+      if (!pendingNotes || session !== generation.current) return;
+      const text = pendingNotes; pendingNotes = "";
+      update((previous) => ({ ...previous, analyses: previous.analyses.map((run) => run.id === id ? { ...run, notes: (run.notes ?? "") + text } : run) }));
+    };
     try {
-      const result = await client.analyses.start.mutate({ documents: selected.map(({ id, name, sections }) => ({ id, name, sections })) },
-        { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(110_000)]) });
+      const response = await fetch("/api/analyses/stream", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documents: selected.map(({ id, name, sections }) => ({ id, name, sections })) }),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(110_000)]) });
+      if (!response.ok || !response.body) {
+        const failed = await response.json().catch(() => ({}));
+        throw new Error(failed.error || "Analysis could not be started. Try again.");
+      }
+      let outcome: AnalysisStreamEvent | undefined;
+      for await (const event of readEvents(response.body)) {
+        if (event.type === "note") { pendingNotes += event.text; flush ??= setTimeout(flushNotes, 120); }
+        else outcome = event;
+      }
+      if (flush) clearTimeout(flush);
+      flushNotes();
       if (session !== generation.current) return;
+      if (!outcome) throw new Error("The analysis ended without a result. Try again.");
+      if (outcome.type === "error") throw new Error(outcome.message);
+      if (outcome.type !== "result") throw new Error("The analysis ended without a result. Try again.");
+      const { result } = outcome;
       update((previous) => completeAnalysis(previous, id, result));
+      patch({ finishedAt: Date.now() });
       setAnnouncement("Analysis complete. Suggestions are ready for review.");
     } catch (cause) {
+      if (flush) clearTimeout(flush);
       if (session !== generation.current) return;
       const message = cause instanceof Error && cause.name !== "TimeoutError" ? cause.message : "Analysis timed out. Try again.";
-      update((previous) => ({ ...previous, analyses: previous.analyses.map((run) => run.id === id ? { ...run, status: "failed", error: message } : run) }));
+      patch({ status: "failed", error: message, finishedAt: Date.now() });
     } finally { requests.current.delete(controller); }
   }
 

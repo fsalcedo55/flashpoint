@@ -4,7 +4,7 @@ import { GatewayError } from "@ai-sdk/gateway";
 import { APICallError, NoObjectGeneratedError, type LanguageModel } from "ai";
 import { analysisInputSchema, MAX_ANALYSIS_CHARACTERS, type AnalysisInput, type AnalysisResult } from "../lib/analysis";
 import { extractionModel } from "./ai-provider";
-import { generatePreferences, verifyEvidence, type SourcePassage } from "./preference-extraction";
+import { generatePreferences, streamPreferences, verifyEvidence, type SourcePassage } from "./preference-extraction";
 
 function publicAnalysisError(error: unknown) {
   if (error instanceof TRPCError) return error.message;
@@ -51,11 +51,14 @@ export function prepareAnalysisSources(input: AnalysisInput): SourcePassage[] {
 }
 
 // Tests inject a model here; requests cannot select a test model or bypass the provider.
-export async function analyzeDocuments(input: AnalysisInput, testing?: { model: LanguageModel }): Promise<AnalysisResult> {
+// With `onNote`, the model is streamed and its reasoning summary is relayed as it arrives.
+export async function analyzeDocuments(input: AnalysisInput, options: { model?: LanguageModel; onNote?: (text: string) => void; signal?: AbortSignal } = {}): Promise<AnalysisResult> {
   const sources = prepareAnalysisSources(input);
-  const model = testing?.model ?? extractionModel();
+  const model = options.model ?? extractionModel();
   try {
-    const generated = await generatePreferences(model, sources);
+    const generated = options.onNote
+      ? await streamPreferences(model, sources, options.onNote, { signal: options.signal })
+      : await generatePreferences(model, sources);
     const verified = verifyEvidence(generated.output, sources);
     if (generated.output.suggestions.length && !verified.suggestions.length) {
       throw new TRPCError({ code: "UNPROCESSABLE_CONTENT", message: "None of the suggested preferences had verifiable source quotes. Try again." });

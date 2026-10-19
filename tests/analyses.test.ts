@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { APICallError, createGateway } from "ai";
-import { MockLanguageModelV4 } from "ai/test";
+import { MockLanguageModelV4, simulateReadableStream } from "ai/test";
 import { TRPCError } from "@trpc/server";
 import { analyzeDocuments } from "../src/server/analyses";
 import { extractionSchema, generatePreferences, verifyEvidence, type SourcePassage } from "../src/server/preference-extraction";
@@ -136,4 +136,34 @@ test("tRPC validates requests and reports missing credentials without a database
     if (original === undefined) delete process.env.AI_GATEWAY_API_KEY;
     else process.env.AI_GATEWAY_API_KEY = original;
   }
+});
+
+test("the streaming call relays reasoning summaries as separate paragraphs and verifies the same result", async () => {
+  const chunks = [
+    { type: "stream-start", warnings: [] },
+    { type: "reasoning-start", id: "r" },
+    { type: "reasoning-delta", id: "r", delta: "Comparing the two " },
+    { type: "reasoning-delta", id: "r", delta: "questionnaires." },
+    { type: "reasoning-end", id: "r" },
+    { type: "reasoning-start", id: "r2" },
+    { type: "reasoning-delta", id: "r2", delta: "Checking scales." },
+    { type: "reasoning-end", id: "r2" },
+    { type: "text-start", id: "t" },
+    { type: "text-delta", id: "t", delta: JSON.stringify({ suggestions: [candidate("d1s1"), candidate("invented")] }) },
+    { type: "text-end", id: "t" },
+    { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: response({}).usage },
+  ];
+  const model = new MockLanguageModelV4({ doStream: async () => ({ stream: simulateReadableStream({ chunks: chunks as never }) }) });
+  const notes: string[] = [];
+  const result = await analyzeDocuments(input(), { model, onNote: (text) => notes.push(text) });
+  assert.equal(notes.join(""), "Comparing the two questionnaires.\n\nChecking scales.");
+  assert.equal(result.suggestions.length, 1);
+  assert.equal(result.rejectedCount, 1);
+  assert.equal(model.doStreamCalls.length, 1);
+  assert.equal((model.doStreamCalls[0].providerOptions as { openai?: { reasoningSummary?: string } })?.openai?.reasoningSummary, "auto");
+});
+
+test("a streamed provider failure is sanitized like a batch one", async () => {
+  const model = new MockLanguageModelV4({ doStream: async () => { throw new APICallError({ message: "private provider details", url: "https://example.test", requestBodyValues: {}, statusCode: 429 }); } });
+  await assert.rejects(analyzeDocuments(input(), { model, onNote: () => undefined }), (error: Error) => /rate limit/.test(error.message) && !error.message.includes("private provider"));
 });

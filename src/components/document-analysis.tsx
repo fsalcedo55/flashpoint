@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Info, LoaderCircle, Sparkles } from "lucide-react";
+import { ArrowRight, Brain, Check, ChevronDown, Info, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { IconSwap } from "@/components/ui/icon-swap";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TileGrid } from "@/components/tile-grid";
+import { Reasoning, ReasoningContent, ReasoningTrigger, useReasoning } from "@/components/ai-elements/reasoning";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useWorkspace } from "@/components/workspace-provider";
 import type { AnalysisRun } from "@/lib/analysis";
 import { MAX_ANALYSIS_DOCUMENTS } from "@/lib/analysis";
@@ -52,23 +54,68 @@ export function AnalysisNotices() {
   </div>;
 }
 
-// The real pipeline: send the text, generate, verify quotes, return suggestions. Cycled while a run is in flight.
+// Fallback while no reasoning summary has arrived yet (or the model returns none).
 const stages = ["Reading the documents", "Looking for preferences", "Checking source quotes"];
 
-function RunningStatus() {
+function useStage(active: boolean) {
   const [stage, setStage] = useState(0);
   useEffect(() => {
+    if (!active) return;
     const timer = setInterval(() => setStage((current) => (current + 1) % stages.length), 2800);
     return () => clearInterval(timer);
-  }, []);
+  }, [active]);
+  return stage;
+}
+
+// The summary opens each section with a bolded title; the latest one says what the model is on now.
+function currentTopic(notes: string) {
+  const titles = [...notes.matchAll(/\*\*([^*\n]+)\*\*/g)];
+  return titles.at(-1)?.[1].trim() ?? "Working through the documents";
+}
+
+// Trigger label: the searching grid and the model's current topic while it works; how long it took afterwards.
+function NotesLabel({ running, topic }: { running: boolean; topic: string }) {
+  const { duration, isOpen } = useReasoning();
   return (
-    <div className="mt-2 flex items-center gap-3">
-      <TileGrid mode="searching" />
-      {/* The key remounts the span, so each stage enters with the same cross-fade. */}
-      <p role="status" aria-live="polite" className="leading-5 text-muted-foreground">
-        <span key={stage} className="inline-block animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4">{stages[stage]}…</span>
-      </p>
-    </div>
+    <>
+      {running ? <TileGrid mode="searching" /> : <Brain className="size-3.5 shrink-0" aria-hidden="true" />}
+      {running
+        ? <Shimmer key={topic} as="span" duration={1.6} className="text-xs animate-in fade-in-0 duration-300">{topic + "…"}</Shimmer>
+        : <span>{duration ? `Worked for ${duration} ${duration === 1 ? "second" : "seconds"}` : "How this was found"}</span>}
+      <ChevronDown className={cn("size-3.5 shrink-0 transition-transform duration-150", isOpen && "rotate-180")} aria-hidden="true" />
+    </>
+  );
+}
+
+// The model's working notes (its reasoning summary): open and growing while the run is
+// in flight, collapsed to a one-line record once it's done. Never styled as conclusions.
+function RunNotes({ run }: { run: AnalysisRun }) {
+  const running = run.status === "running";
+  const stage = useStage(running && !run.notes);
+  const content = useRef<HTMLDivElement>(null);
+  const duration = run.startedAt && run.finishedAt ? Math.max(1, Math.ceil((run.finishedAt - run.startedAt) / 1000)) : undefined;
+  // Keep the newest notes in view while they stream.
+  useEffect(() => {
+    if (running && content.current) content.current.scrollTop = content.current.scrollHeight;
+  }, [running, run.notes]);
+  if (!running && !run.notes) return null;
+  if (!run.notes) {
+    return (
+      <div className="mt-2 flex items-center gap-3">
+        <TileGrid mode="searching" />
+        <p role="status" aria-live="polite" className="leading-5 text-muted-foreground">
+          <span key={stage} className="inline-block animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4">{stages[stage]}…</span>
+        </p>
+      </div>
+    );
+  }
+  return (
+    <Reasoning isStreaming={running} duration={duration} className="mt-2 mb-0">
+      <ReasoningTrigger className="w-fit gap-2 text-xs"><NotesLabel running={running} topic={currentTopic(run.notes)} /></ReasoningTrigger>
+      <ReasoningContent ref={content} className="mt-2 max-h-56 overflow-y-auto overscroll-contain rounded-lg bg-secondary px-3 py-2 text-xs leading-5 text-muted-foreground [&_p]:my-1 [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-4">
+        {run.notes}
+      </ReasoningContent>
+    </Reasoning>
   );
 }
 
@@ -90,7 +137,6 @@ function AnalysisRow({ run, listShownAt }: { run: Run; listShownAt: number }) {
   return (
     <li ref={ref} className={cn("py-3 text-xs", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
       <p className="break-words text-sm font-medium">{run.sources.map((source) => source.name).join(", ")}</p>
-      {run.status === "running" ? <RunningStatus /> : null}
       {run.status === "failed" ? (
         <div className={cn("mt-2", wasRunning && reveal)}>
           <p className="leading-5 text-destructive">{run.error}</p>
@@ -106,6 +152,7 @@ function AnalysisRow({ run, listShownAt }: { run: Run; listShownAt: number }) {
           {run.suggestionCount ? <Button asChild variant="ghost" size="sm" className="-mr-2 px-2 text-sm"><Link href="/review">Review preferences <ArrowRight className="size-3" aria-hidden="true" /></Link></Button> : null}
         </div>
       ) : null}
+      <RunNotes run={run} />
     </li>
   );
 }

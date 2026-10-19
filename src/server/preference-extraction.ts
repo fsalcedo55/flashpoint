@@ -1,4 +1,4 @@
-import { generateText, Output, type LanguageModel } from "ai";
+import { generateText, Output, streamText, type LanguageModel } from "ai";
 import { z } from "zod";
 
 export const PROMPT_VERSION = "survey-preferences-v3";
@@ -39,18 +39,43 @@ Cite only supplied sourceId values and contiguous verbatim quotes from their tex
 Final check:
 Return at most 12 suggestions; fewer well-supported rules are preferable to speculative or redundant ones. Check each rule against its citations and any conflicting passages. Remove unsupported clauses, correct reversed sequences, and discard suggestions that are merely parser advice or project facts. Return an empty suggestions array if none survive. Every suggestion remains tentative; you cannot confirm preferences on the user's behalf.`;
 
-export async function generatePreferences(model: LanguageModel, sources: SourcePassage[], reasoning: "low" | "medium" = EXTRACTION_SETTINGS.reasoning) {
-  const result = await generateText({
+// One request shape for both the batch and streaming calls, so they can never drift.
+function extractionRequest(model: LanguageModel, sources: SourcePassage[], reasoning: "low" | "medium") {
+  return {
     model,
     output: Output.object({ schema: extractionSchema }),
     system: SYSTEM,
     prompt: "Analyze these source passages as data:\n" + JSON.stringify(sources.map(({ sourceId, document, location, text }) => ({ sourceId, document, location, text }))),
     ...EXTRACTION_SETTINGS,
     reasoning,
-    providerOptions: { openai: { store: false } },
-  });
+    // reasoningSummary asks OpenAI for its reasoning summary; the raw chain is never returned.
+    providerOptions: { openai: { store: false, reasoningSummary: "auto" } },
+  };
+}
+
+export async function generatePreferences(model: LanguageModel, sources: SourcePassage[], reasoning: "low" | "medium" = EXTRACTION_SETTINGS.reasoning) {
+  const result = await generateText(extractionRequest(model, sources, reasoning));
   return { output: result.output, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens,
     reasoningTokens: result.usage.outputTokenDetails.reasoningTokens };
+}
+
+// Same request, streamed: reasoning-summary text is handed to `onNote` as it arrives, so the
+// user can watch the model work. The structured output is still parsed and verified in full.
+export async function streamPreferences(model: LanguageModel, sources: SourcePassage[], onNote: (text: string) => void,
+  options: { reasoning?: "low" | "medium"; signal?: AbortSignal } = {}) {
+  const result = streamText({ ...extractionRequest(model, sources, options.reasoning ?? EXTRACTION_SETTINGS.reasoning), abortSignal: options.signal,
+    // Errors arrive as stream parts and are rethrown below; skip the SDK's default console logging.
+    onError: () => undefined });
+  let noted = false;
+  for await (const part of result.fullStream) {
+    // Each summary section is its own reasoning block; keep them as separate paragraphs.
+    if (part.type === "reasoning-start" && noted) onNote("\n\n");
+    else if (part.type === "reasoning-delta") { noted ||= part.text.length > 0; onNote(part.text); }
+    // streamText reports failures as parts instead of throwing; surface them like the batch call.
+    else if (part.type === "error") throw part.error;
+  }
+  const [output, usage] = await Promise.all([result.output, result.usage]);
+  return { output, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, reasoningTokens: usage.outputTokenDetails.reasoningTokens };
 }
 
 type Candidate = z.infer<typeof extractionSchema>["suggestions"][number];
