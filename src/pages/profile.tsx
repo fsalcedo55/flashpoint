@@ -8,7 +8,7 @@ import { DeletePreference } from "@/components/delete-preference";
 import { useWorkspace } from "@/components/workspace-provider";
 
 export default function ProfilePage() {
-  const { preferences, decide, isSaving, isUnavailable } = useWorkspace();
+  const { preferences, decide } = useWorkspace();
   const reviewHref = "/review";
   const confirmed = preferences.filter((item) => item.status === "confirmed");
   const pendingCount = preferences.filter((item) => item.status === "pending").length;
@@ -45,7 +45,7 @@ export default function ProfilePage() {
                       </div>
                       <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t pt-4">
                         <DeletePreference preference={item} className="mr-auto" />
-                        <Button disabled={isSaving || isUnavailable} variant="ghost" className="h-10 gap-2 px-3 text-sm text-muted-foreground" onClick={() => void decide(item.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
+                        <Button variant="ghost" className="h-10 gap-2 px-3 text-sm text-muted-foreground" onClick={() => void decide(item.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
                         <PreferenceEditor preference={item} />
                       </div>
                     </article>

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, CheckCheck, ChevronRight, FileText, ListChecks, LoaderCircle, Quote, RotateCcw, X } from "lucide-react";
+import { ArrowRight, Check, CheckCheck, ChevronRight, FileText, ListChecks, Quote, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { IconSwap } from "@/components/ui/icon-swap";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Label } from "@/components/ui/label";
@@ -14,7 +13,7 @@ import { useWorkspace } from "@/components/workspace-provider";
 import { cn } from "@/lib/utils";
 
 export default function ReviewPage() {
-  const { preferences, decide, isSaving, isUnavailable } = useWorkspace();
+  const { preferences, documents, decide } = useWorkspace();
   const profileHref = "/profile";
   const [view, setView] = useState("pending");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -33,7 +32,7 @@ export default function ReviewPage() {
         <div className="flex min-h-[370px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
           <span className="stagger-item mb-5 flex size-14 items-center justify-center rounded-2xl bg-secondary text-primary"><ListChecks className="size-6" strokeWidth={1.5} aria-hidden="true" /></span>
           <h2 className="stagger-item text-lg font-semibold">No preferences to review</h2>
-          <p className="stagger-item mt-3 max-w-md text-sm leading-7 text-muted-foreground">Upload questionnaires, then select saved documents and choose Find preferences.</p>
+          <p className="stagger-item mt-3 max-w-md text-sm leading-7 text-muted-foreground">Upload questionnaires, then select documents and choose Find preferences.</p>
           <Button asChild className="stagger-item mt-6 h-10 gap-2 px-5"><Link href="/">Your documents <ArrowRight aria-hidden="true" /></Link></Button>
         </div>
       ) : (
@@ -51,7 +50,7 @@ export default function ReviewPage() {
             <div className="flex min-h-[340px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
               <span className="stagger-item mb-5 flex size-14 items-center justify-center rounded-full bg-secondary text-primary"><CheckCheck className="size-6" aria-hidden="true" /></span>
               <h2 className="stagger-item text-lg font-semibold">{view === "pending" ? "Review complete" : "No reviewed preferences"}</h2>
-              <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{view === "pending" ? "All suggestions have been reviewed. Confirmed preferences are saved to your profile." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
+              <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{view === "pending" ? "All suggestions have been reviewed. Confirmed preferences are in your profile for this session." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
               {view === "pending" ? (
                 <Button asChild className="stagger-item mt-6 h-10 px-5"><Link href={profileHref}>Go to your profile <ArrowRight aria-hidden="true" /></Link></Button>
               ) : <Button variant="outline" className="stagger-item mt-6 h-10 px-5" onClick={() => setView("pending")}>Back to suggestions</Button>}
@@ -93,7 +92,7 @@ export default function ReviewPage() {
                       {selected.evidence.map((evidence) => (
                         <figure key={(evidence.documentId ?? evidence.document) + evidence.location} className="rounded-md bg-secondary p-4">
                           <figcaption className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span className="flex min-w-0 items-start gap-1.5 font-medium"><FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />{evidence.documentId ? <a href={`/api/documents/${evidence.documentId}/download`} className="min-w-0 break-words underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Download source ${evidence.document}`}>{evidence.document}</a> : <span className="min-w-0 break-words">{evidence.document}</span>}</span>
+                            <span className="flex min-w-0 items-start gap-1.5 font-medium"><FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />{evidence.documentId ? <a href={documents.find((document) => document.id === evidence.documentId)?.url} download={evidence.document} className="min-w-0 break-words underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Download source ${evidence.document}`}>{evidence.document}</a> : <span className="min-w-0 break-words">{evidence.document}</span>}</span>
                             <span className="text-muted-foreground">{evidence.location}</span>
                           </figcaption>
                           <blockquote className="border-l-2 border-input pl-3 text-sm leading-relaxed whitespace-pre-line break-words">{evidence.quote}</blockquote>
@@ -107,18 +106,18 @@ export default function ReviewPage() {
                   {selected.status === "pending" ? (
                     <>
                       <div className="flex items-center gap-1">
-                        <Button disabled={isSaving || isUnavailable} variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground" onClick={() => void decide(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /> Deny</Button>
+                        <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground" onClick={() => void decide(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /> Deny</Button>
                         <DeletePreference preference={selected} />
                       </div>
                       <div className="flex gap-2">
                         <PreferenceEditor preference={selected} />
-                        <Button disabled={isSaving || isUnavailable} className="h-10 gap-2 px-4" onClick={() => void decide(selected.id, "confirmed")}><IconSwap active={isSaving} activeIcon={<LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />} inactiveIcon={<Check className="size-3.5" />} /> {isSaving ? "Saving…" : "Confirm"}</Button>
+                        <Button className="h-10 gap-2 px-4" onClick={() => void decide(selected.id, "confirmed")}><Check className="size-3.5" /> Confirm</Button>
                       </div>
                     </>
                   ) : (
                     <>
                       <div className="flex items-center gap-1">
-                        <Button disabled={isSaving || isUnavailable} variant="ghost" className="h-10 gap-2 px-3 text-sm" onClick={() => void decide(selected.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
+                        <Button variant="ghost" className="h-10 gap-2 px-3 text-sm" onClick={() => void decide(selected.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
                         <DeletePreference preference={selected} />
                       </div>
                       <PreferenceEditor preference={selected} />

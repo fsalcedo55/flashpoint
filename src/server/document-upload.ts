@@ -21,7 +21,7 @@ export async function readUpload(request: IncomingMessage) {
     return { name: file.originalFilename ?? "", buffer: await readFile(file.filepath) };
   } catch (error) {
     if (error instanceof DocumentError) throw error;
-    throw new DocumentError("Upload failed. Choose a nonempty PDF or DOCX no larger than 10 MB, and try again.");
+    throw new DocumentError("Upload failed. Choose a nonempty PDF or DOCX no larger than 4 MB, and try again.");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -15,7 +15,7 @@ Validation: all 58 question prompts passed through the app's local DOCX extracto
 
 ## First run
 
-1. Upload the first three DOCX files from this pack through Your documents.
+1. Upload the first three DOCX files from this pack through Your documents. Refreshing clears this temporary session.
 2. Open View text for each and check that question prompts, complete response scales, and programming notes appear. DOCX citations use paragraph locations rather than page numbers.
 3. Select only these three documents, then choose Find preferences. Keep the older miniature fixtures out of the selection so their evidence does not contaminate this comparison.
 4. In Review preferences, inspect the source quotations before confirming anything. The suggestions below are plausible targets, not a required exact answer or exhaustive list.
@@ -40,7 +40,7 @@ Numbered items, descriptive section headings, and time-bounded behavior question
 
 Select all four files for a second analysis. The fourth explicitly preserves a client's seven-point agreement grid, endpoint-only labels, fixed order, and early classification questions. A good result qualifies the five-point/fully-labelled/late-classification patterns by context, cites the exception, or omits the conflicted universal claim. It should not infer that the researcher always prefers seven points simply because this file contains a grid.
 
-The current app is additive: a new run does not automatically revise or retract suggestions from earlier runs. Compare the new result against the earlier run; do not expect this exercise to rewrite already-confirmed preferences. Existing equivalent rules may also be deduplicated, so a run can yield fewer new suggestions than the number of visible patterns. For a completely independent evaluation, use a separate local database/workspace rather than deleting existing decisions.
+The current app is additive: a new run does not automatically revise or retract suggestions from earlier runs. Compare the new result against the earlier run; do not expect this exercise to rewrite already-confirmed preferences. Existing equivalent rules may also be deduplicated, so a run can yield fewer new suggestions than the number of visible patterns. For a completely independent evaluation, use a new tab, or refresh to start an empty session.
 
 The legacy grid is also a useful extraction check. Inspect Q4's instruction, statement labels, and numeric columns in View text. DOCX plain-text extraction may flatten table structure; an absent grid reconstruction is not by itself a preference-extraction failure. Quotes must still match real extracted passages.
 

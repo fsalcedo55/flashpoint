@@ -3,11 +3,12 @@ export type PreferenceStatus = (typeof preferenceStatuses)[number];
 
 export type Preference = {
   id: string;
+  analysisId: string;
   category: string;
   title: string;
+  suggestedRule: string;
   rule: string;
   rationale: string;
   status: PreferenceStatus;
-  version: number;
-  evidence: { documentId?: string; document: string; location: string; quote: string }[];
+  evidence: { documentId: string; document: string; location: string; quote: string }[];
 };

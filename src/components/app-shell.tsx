@@ -69,7 +69,7 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { preferences, announcement, isLoading, isUnavailable, isSaving, error, retry } = useWorkspace();
+  const { announcement, error, clearError } = useWorkspace();
   const title = navigation.find((item) => item.href === router.pathname)?.label ?? "Preferences";
 
   return (
@@ -115,11 +115,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         {error ? (
           <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/25 bg-white p-4 text-sm">
             <p className="text-destructive">{error}</p>
-            <Button variant="outline" size="sm" onClick={retry} disabled={isSaving}>Reload workspace</Button>
+            <Button variant="outline" size="sm" onClick={clearError}>Dismiss</Button>
           </div>
         ) : null}
-        {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your workspace…</p>
-          : isUnavailable && !preferences.length ? null : children}
+        <p className="mb-6 text-xs text-muted-foreground">This session isn’t saved. Refreshing or closing this tab clears your workspace.</p>
+        {children}
       </main>
       <p role="status" className="sr-only">{announcement}</p>
     </div>

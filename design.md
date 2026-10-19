@@ -207,7 +207,7 @@ For future changes:
 - Verify the name, official mark, fonts, warm surfaces, blue actions, and restrained orange accents.
 - Check hover, focus, selection, disabled, pending, confirmed, denied, error, and empty states.
 - Check long quotations and filenames, keyboard operation, and zoomed layouts.
-- Preserve document upload, source references, persistence, and review decisions.
+- Preserve document upload, source references, and review decisions within the current tab. The demo uses React state; refreshing or closing the tab clears the workspace.
 - Keep all previously removed marketing labels and panels absent.
 
 Remaining company-specific questions: approved vector/favicons and logo variants; whether the internal product uses the same typography as the marketing site; formal brand spacing rules; approved dark-mode and semantic-status palettes. Until those are supplied, use the observed light identity and clearly labeled app recommendations here.

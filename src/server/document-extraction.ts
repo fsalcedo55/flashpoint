@@ -10,7 +10,7 @@ export class DocumentError extends Error {}
 
 export function validateUpload(name: string, buffer: Buffer): DocumentType {
   if (!buffer.length || buffer.length > MAX_FILE_BYTES) {
-    throw new DocumentError("Files must be nonempty and no larger than 10 MB.");
+    throw new DocumentError("Files must be nonempty and no larger than 4 MB.");
   }
   const extension = name.split(".").pop()?.toLowerCase();
   if (extension === "pdf" && buffer.subarray(0, 1024).includes(Buffer.from("%PDF-"))) return "pdf";
