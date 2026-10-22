@@ -8,7 +8,7 @@ import { DocumentError } from "./document-extraction";
 
 export async function readUpload(request: IncomingMessage) {
   if (!request.headers["content-type"]?.startsWith("multipart/form-data;")) {
-    throw new DocumentError("Send a PDF or DOCX using the file upload form.");
+    throw new DocumentError("Send a PDF, DOCX or PPTX using the file upload form.");
   }
   const directory = await mkdtemp(path.join(tmpdir(), "flashpoint-upload-"));
   try {
@@ -21,7 +21,7 @@ export async function readUpload(request: IncomingMessage) {
     return { name: file.originalFilename ?? "", buffer: await readFile(file.filepath) };
   } catch (error) {
     if (error instanceof formidableErrors.default && error.httpCode !== undefined && error.httpCode < 500) {
-      throw new DocumentError("Upload failed. Choose a nonempty PDF or DOCX no larger than 4 MB, and try again.");
+      throw new DocumentError("Upload failed. Choose a nonempty PDF, DOCX or PPTX no larger than 4 MB, and try again.");
     }
     // Preserve filesystem and unexpected parser failures for the API's error handler.
     throw error;

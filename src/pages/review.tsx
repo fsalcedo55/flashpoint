@@ -31,7 +31,7 @@ export default function ReviewPage() {
         <div className="flex min-h-[370px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
           <span className="stagger-item mb-5 flex size-14 items-center justify-center rounded-2xl bg-secondary text-primary"><ListChecks className="size-6" strokeWidth={1.5} aria-hidden="true" /></span>
           <h2 className="stagger-item text-lg font-semibold">No preferences to review</h2>
-          <p className="stagger-item mt-3 max-w-md text-sm leading-7 text-muted-foreground">Upload questionnaires, then select documents and choose Find preferences.</p>
+          <p className="stagger-item mt-3 max-w-md text-sm leading-7 text-muted-foreground">Upload documents, then select documents and choose Find preferences.</p>
           <Button asChild className="stagger-item mt-6 h-10 gap-2 px-5"><Link href="/">Your documents <ArrowRight aria-hidden="true" /></Link></Button>
         </div>
       ) : (
@@ -88,17 +88,27 @@ export default function ReviewPage() {
                   <div className="mt-7 border-t pt-6">
                     <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Quote className="size-4 shrink-0 text-primary" aria-hidden="true" /> Source evidence</h3>
                     <div className="space-y-3">
-                      {selected.evidence.map((evidence) => (
+                      {selected.evidence.map((evidence) => {
+                        const document = documents.find((item) => item.id === evidence.documentId);
+                        const imageId = document?.sections.find((section) => section.location === evidence.location)?.imageId;
+                        const image = imageId ? document?.assets?.[imageId] : undefined;
+                        return (
                         <figure key={(evidence.documentId ?? evidence.document) + evidence.location} className="rounded-md bg-secondary p-4">
                           <figcaption className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-                            <span className="flex min-w-0 items-start gap-1.5 font-medium"><FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />{evidence.documentId ? <a href={documents.find((document) => document.id === evidence.documentId)?.url} download={evidence.document} className="min-w-0 break-words underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Download source ${evidence.document}`}>{evidence.document}</a> : <span className="min-w-0 break-words">{evidence.document}</span>}</span>
+                            <span className="flex min-w-0 items-start gap-1.5 font-medium"><FileText className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />{evidence.documentId ? <a href={document?.url} download={evidence.document} className="min-w-0 break-words underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Download source ${evidence.document}`}>{evidence.document}</a> : <span className="min-w-0 break-words">{evidence.document}</span>}</span>
                             <span className="text-muted-foreground">{evidence.location}</span>
                           </figcaption>
-                          <blockquote className="border-l-2 border-input pl-3 text-sm leading-relaxed whitespace-pre-line break-words">{evidence.quote}</blockquote>
+                          {evidence.kind === "image" ? <>
+                            {/* Already resized and validated during upload; no remote image fetch. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            {image ? <img src={image} alt={`Source image from ${evidence.location}`} className="mb-3 max-h-72 max-w-full rounded object-contain" /> : <p className="text-xs">Source image is unavailable in this session.</p>}
+                            <p className="mb-1 text-xs font-medium text-muted-foreground">AI image observation · verify visually</p>
+                            <p className="text-sm leading-relaxed whitespace-pre-line break-words">{evidence.quote}</p>
+                          </> : <blockquote className="border-l-2 border-input pl-3 text-sm leading-relaxed whitespace-pre-line break-words">{evidence.quote}</blockquote>}
                         </figure>
-                      ))}
+                      ); })}
                     </div>
-                    <p className="mt-3 text-xs leading-5 text-muted-foreground">Quotes are checked against the extracted document text. Review whether they support the suggested preference.</p>
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">{selected.evidence.some((item) => item.kind === "image") ? "Image references are checked, but visual observations need your review." : "Quotes are checked against the extracted document text. Review whether they support the suggested preference."}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-background/60 p-5 sm:px-7">

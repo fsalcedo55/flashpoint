@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC, useTRPCClient } from "@/lib/trpc";
-import { MAX_ANALYSIS_DOCUMENTS, prepareAnalysisSources, type AnalysisResult } from "@/lib/analysis";
-import { extractedDocumentSchema, formatFileSize, MAX_FILE_BYTES, MAX_FILES, type SessionDocument } from "@/lib/documents";
+import { ANALYSIS_REQUEST_TIMEOUT_MS, MAX_ANALYSIS_DOCUMENTS, prepareAnalysisSources, type AnalysisResult } from "@/lib/analysis";
+import { documentTypeFromName, extractedDocumentSchema, formatFileSize, MAX_FILE_BYTES, MAX_FILES, type SessionDocument } from "@/lib/documents";
 import type { PreferenceStatus } from "@/lib/preferences";
 import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, type WorkspaceState } from "@/lib/workspace";
 import type { AnalysisRun } from "@/lib/analysis";
@@ -82,13 +82,14 @@ function useSessionWorkspace() {
     const added: SessionDocument[] = [];
     const inFlight = current.current.documents.filter((item) => item.status === "processing").length;
     for (const file of files) {
-      if (!/\.(pdf|docx)$/i.test(file.name)) { errors.push(`${file.name}: choose a PDF or DOCX.`); continue; }
+      const fileType = documentTypeFromName(file.name);
+      if (!fileType) { errors.push(`${file.name}: choose a PDF, DOCX or PPTX.`); continue; }
       if (!file.size || file.size > MAX_FILE_BYTES) { errors.push(`${file.name}: choose a nonempty file up to ${formatFileSize(MAX_FILE_BYTES)}.`); continue; }
       if (inFlight + added.length >= MAX_FILES) { errors.push(`Add up to ${MAX_FILES} files at a time.`); break; }
       const url = URL.createObjectURL(file);
       urls.current.add(url);
       added.push({ id: crypto.randomUUID(), name: file.name.slice(0, 255), file, url, byteSize: file.size,
-        fileType: /\.pdf$/i.test(file.name) ? "pdf" : "docx", status: "processing",
+        fileType, status: "processing",
         sections: [], warnings: [], characterCount: 0, sectionCount: 0 });
     }
     setError(errors.join(" ") || null);
@@ -126,7 +127,7 @@ function useSessionWorkspace() {
     if (current.current.analyses.some((run) => run.key === key && run.status === "completed")) {
       clearSelection(); setAnnouncement("This selection has already been analyzed in this session."); return;
     }
-    const input = { documents: selected.map(({ id, name, sections }) => ({ id, name, sections })) };
+    const input = { documents: selected.map(({ id, name, sections, warnings, assets }) => ({ id, name, sections, warnings, assets })) };
     try {
       prepareAnalysisSources(input);
     } catch (cause) {
@@ -152,7 +153,7 @@ function useSessionWorkspace() {
     };
     try {
       const events = await trpcClient.analyses.start.mutate(input, {
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(110_000)]) });
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(ANALYSIS_REQUEST_TIMEOUT_MS)]) });
       let result: AnalysisResult | undefined;
       for await (const event of events) {
         if (event.type === "note") { pendingNotes += event.text; flush ??= setTimeout(flushNotes, 120); }

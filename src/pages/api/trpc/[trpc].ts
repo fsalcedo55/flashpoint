@@ -3,7 +3,8 @@ import { createNextApiHandler } from "@trpc/server/adapters/next";
 import { appRouter } from "@/server/routers/_app";
 import { createTRPCContext } from "@/server/trpc";
 
-export const config = { api: { bodyParser: { sizeLimit: "2mb" } }, maxDuration: 120 };
+// Keep this literal for Next.js config extraction; allow cleanup after the 210s client deadline.
+export const config = { api: { bodyParser: { sizeLimit: "4mb" } }, maxDuration: 240 };
 const trpcHandler = createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,

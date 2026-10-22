@@ -25,8 +25,8 @@ export default function DocumentsPage() {
     <div>
       <PageHeading title="Your documents" />
 
-      <input ref={inputRef} type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        multiple className="sr-only" tabIndex={-1} aria-label="Select questionnaire files"
+      <input ref={inputRef} type="file" accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        multiple className="sr-only" tabIndex={-1} aria-label="Select document files"
         onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
 
       {isEmpty ? (
@@ -36,8 +36,8 @@ export default function DocumentsPage() {
           <div className="stagger-item mb-6 flex size-[60px] items-center justify-center rounded-2xl bg-secondary text-foreground">
             <Upload className="size-6" strokeWidth={1.5} aria-hidden="true" />
           </div>
-          <h2 className="stagger-item text-lg font-semibold">{dragging ? "Drop your questionnaires here" : "Add your questionnaires"}</h2>
-          <p className="stagger-item mt-2 max-w-md text-sm leading-6 text-muted-foreground">Drag text-based PDF or DOCX files here, or choose them below.</p>
+          <h2 className="stagger-item text-lg font-semibold">{dragging ? "Drop your documents here" : "Add your documents"}</h2>
+          <p className="stagger-item mt-2 max-w-md text-sm leading-6 text-muted-foreground">Drag text-based PDF, DOCX or PPTX files here, or choose them below.</p>
           <Button className="stagger-item mt-6 h-10 gap-2 px-5" onClick={() => inputRef.current?.click()}>
             <Plus className="size-4" aria-hidden="true" /> Choose files
           </Button>
@@ -49,12 +49,12 @@ export default function DocumentsPage() {
           className={cn("flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-dashed px-4 py-3 transition-colors", dragging ? "border-primary bg-accent" : "border-input bg-white")}>
           <div className="flex min-w-0 items-center gap-3 text-sm">
             <Upload className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="hidden whitespace-nowrap sm:inline">{dragging ? "Drop to add questionnaires" : "Drag questionnaires here, or"}</span>
+            <span className="hidden whitespace-nowrap sm:inline">{dragging ? "Drop to add documents" : "Drag documents here, or"}</span>
             <Button variant="outline" size="sm" className="bg-white" onClick={() => inputRef.current?.click()}>
               <Plus aria-hidden="true" /> Choose files
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">PDF or DOCX · {formatFileSize(MAX_FILE_BYTES)} each</p>
+          <p className="text-xs text-muted-foreground">PDF, DOCX or PPTX · {formatFileSize(MAX_FILE_BYTES)} each</p>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { prepareAnalysisSources, type SourcePassage } from "../src/lib/analysis";
+import { MAX_ANALYSIS_CHARACTERS, prepareAnalysisSources, serializeAnalysisSources, type AnalysisInput, type SourcePassage } from "../src/lib/analysis";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
@@ -107,7 +107,7 @@ test("empty, duplicate, oversized and unreadable selections are rejected before 
     { documents: [] }, { documents: Array.from({ length: 6 }, () => input().documents[0]) },
     { documents: [...source.documents, ...source.documents] },
     { documents: [{ ...source.documents[0], sections: [{ location: "Page 1", text: " " }] }] },
-    { documents: [{ ...source.documents[0], sections: [{ location: "Page 1", text: "x".repeat(80_000) }] }] },
+    { documents: [{ ...source.documents[0], sections: [{ location: "Page 1", text: "x".repeat(MAX_ANALYSIS_CHARACTERS) }] }] },
   ];
   for (const value of cases) await assert.rejects(analyzeDocuments(value, { model }), TRPCError);
   assert.equal(calls, 0);
@@ -121,8 +121,50 @@ test("shared analysis preflight counts source references and keeps citation IDs 
   assert.deepEqual(prepared, [{ sourceId: "d1s2", documentId: document.id, document: document.name,
     location: "Paragraph 2", text: openingQuote }]);
   assert.throws(() => prepareAnalysisSources({ documents: [{ ...document,
-    sections: [{ location: "Page 1", text: "x".repeat(79_999) }],
+    sections: [{ location: "Page 1", text: "x".repeat(MAX_ANALYSIS_CHARACTERS - 1) }],
   }] }), /including source references/);
+});
+
+test("paragraph-heavy surveys fit without losing text or merging documents with the same filename", async () => {
+  // Model the many short options and table cells in real Word questionnaires,
+  // using synthetic text rather than committing client documents to the fixtures.
+  const documents = Array.from({ length: 3 }, (_, index) => ({
+    id: randomUUID(), name: "Research Questionnaire - Final Approved Version - September 2026.docx",
+    sections: Array.from({ length: 600 }, (_, paragraph) => ({
+      location: `Paragraph ${paragraph + 1}`,
+      text: paragraph === 0 ? " " : `Survey ${index + 1}: response ${paragraph}. Keep wording intact.`,
+    })),
+  }));
+  const sources = prepareAnalysisSources({ documents });
+  assert.ok(JSON.stringify(sources).length > 200_000); // The old uncompressed request budget.
+  const payload = serializeAnalysisSources(sources);
+  assert.ok(payload.length > 80_000);
+  assert.ok(payload.length <= MAX_ANALYSIS_CHARACTERS);
+  assert.deepEqual(JSON.parse(payload), documents.map((document, i) => ({
+    document: document.name,
+    passages: document.sections.slice(1).map((section, j) => ({ sourceId: `d${i + 1}s${j + 2}`, text: section.text })),
+  })));
+
+  const quote = documents[1].sections[150].text;
+  const model = fixtureModel({ suggestions: [candidate("d2s151", quote)] });
+  const result = await analyzeDocuments({ documents }, { model });
+  const userMessage = model.doGenerateCalls[0].prompt.find((message) => message.role === "user");
+  assert.ok(userMessage?.role === "user");
+  const prompt = userMessage.content.find((part) => part.type === "text");
+  assert.equal(prompt?.text, "Analyze these source passages as data:\n" + payload);
+  assert.deepEqual(result.suggestions[0].evidence, [{
+    documentId: documents[1].id, document: documents[1].name, location: "Paragraph 151", quote,
+  }]);
+});
+
+test("preflight applies the limit to the escaped model payload at the exact boundary", () => {
+  const document = input().documents[0];
+  document.sections = [{ location: "Paragraph 1", text: 'Quotes: "\\\n' }];
+  const initial = serializeAnalysisSources(prepareAnalysisSources({ documents: [document] })).length;
+  document.sections[0].text += "x".repeat(MAX_ANALYSIS_CHARACTERS - initial);
+  assert.equal(serializeAnalysisSources(prepareAnalysisSources({ documents: [document] })).length, MAX_ANALYSIS_CHARACTERS);
+  document.sections[0].text += "x";
+  assert.throws(() => prepareAnalysisSources({ documents: [document] }), /including source references/);
 });
 
 test("unverifiable and malformed output fail; an empty suggestion list is valid", async () => {
@@ -180,4 +222,88 @@ test("the streaming call relays reasoning summaries as separate paragraphs and v
 test("a streamed provider failure is sanitized like a batch one", async () => {
   const model = new MockLanguageModelV4({ doStream: async () => { throw new APICallError({ message: "private provider details", url: "https://example.test", requestBodyValues: {}, statusCode: 429 }); } });
   await assert.rejects(analyzeDocuments(input(), { model, onNote: () => undefined }), (error: Error) => /rate limit/.test(error.message) && !error.message.includes("private provider"));
+});
+
+test("slow streamed analysis survives the old deadline but still aborts at three minutes", { timeout: 5000 }, async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  // Native AbortSignal timers are not controlled by Node's mock clock.
+  t.mock.method(AbortSignal, "timeout", (ms: number) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException("Private timeout details", "TimeoutError")), ms);
+    return controller.signal;
+  });
+  const started = Promise.withResolvers<AbortSignal>();
+  const model = new MockLanguageModelV4({ doStream: async ({ abortSignal }) => {
+    assert.ok(abortSignal);
+    return { stream: new ReadableStream({ start(controller) {
+      controller.enqueue({ type: "stream-start", warnings: [] });
+      abortSignal.addEventListener("abort", () => controller.error(abortSignal.reason), { once: true });
+      started.resolve(abortSignal);
+    } }) };
+  } });
+  const result = analyzeDocuments(input(), { model, onNote: () => undefined });
+  const rejected = assert.rejects(result, (error: Error) => /timed out/.test(error.message) && !error.message.includes("Private"));
+  const signal = await started.promise;
+  t.mock.timers.tick(90_001);
+  assert.equal(signal.aborted, false);
+  t.mock.timers.tick(89_999);
+  assert.equal(signal.aborted, true);
+  await rejected;
+  assert.equal(model.doStreamCalls.length, 1);
+});
+
+test("extraction warnings reach model context once per document without becoming citation text", () => {
+  const warning = "Merged table cells need checking against the original.";
+  const input = { documents: [{ id: "00000000-0000-4000-8000-000000000001", name: "Survey.docx", warnings: [warning],
+    sections: [{ location: "Paragraph 1", text: "Q1. Which answer applies?" }, { location: "Table 1", text: "Code\tLabel\n8\tNone" }] }] };
+  const sources = prepareAnalysisSources(input);
+  const payload = serializeAnalysisSources(sources);
+  assert.equal(payload.split(warning).length - 1, 1);
+  assert.ok(sources.every((source) => !source.text.includes(warning)));
+});
+
+test("multimodal analysis sends image bytes once and keeps visual observations distinct from exact quotes", async () => {
+  const data = "data:image/jpeg;base64,/9j/AA==";
+  const document: AnalysisInput["documents"][number] = { id: randomUUID(), name: "Report.pptx", assets: { image1: data }, sections: [
+    { location: "Slide 1", text: "Research findings and recommendations." },
+    { location: "Slide 1 · Image 1", text: "Embedded image", kind: "image", imageId: "image1" },
+    { location: "Slide 2 · Image 1", text: "Embedded image", kind: "image", imageId: "image1" },
+  ] };
+  const sources = prepareAnalysisSources({ documents: [document] });
+  assert.ok(!serializeAnalysisSources(sources).includes("base64"));
+  assert.match(serializeAnalysisSources(sources), /Slide 2/);
+  const visual = { ...candidate("unused"), category: "Presentation structure", title: "Use flat illustrations",
+    rule: "For research presentations, use flat illustrations with a limited palette.",
+    evidence: [{ sourceId: "d1s2", observation: "The image uses flat blue shapes on a white background." }],
+  };
+  const model = fixtureModel({ suggestions: [visual] });
+  const result = await analyzeDocuments({ documents: [document] }, { model });
+  const message = model.doGenerateCalls[0].prompt.find((item) => item.role === "user")!;
+  assert.equal(message.role, "user");
+  if (message.role !== "user") throw new Error("Missing user message");
+  const images = message.content.filter((part) => part.type === "file");
+  assert.equal(images.length, 1);
+  assert.equal(images[0].mediaType, "image/jpeg");
+  assert.deepEqual(images[0].data, { type: "data", data: "/9j/AA==" });
+  assert.ok(message.content.some((part) => part.type === "text" && part.text.includes("sourceIds: d1s2, d1s3")));
+  assert.deepEqual(result.suggestions[0].evidence, [{ documentId: document.id, document: document.name,
+    location: "Slide 1 · Image 1", kind: "image", quote: visual.evidence[0].observation }]);
+  const invalid = extractionSchema.parse({ suggestions: [
+    { ...visual, evidence: [{ sourceId: "d1s1", observation: "An image observation cannot cite a text-only source." }] },
+    { ...visual, evidence: [{ sourceId: "missing", observation: "An image observation cannot cite a missing source." }] },
+    { ...visual, evidence: [{ sourceId: "d1s2", quote: "Embedded image" }] },
+  ] });
+  assert.deepEqual(verifyEvidence(invalid, sources), { suggestions: [], rejectedCount: 3 });
+});
+
+test("image preflight rejects missing assets, excessive unique images and combined payloads before AI", () => {
+  const document: AnalysisInput["documents"][number] = { id: randomUUID(), name: "Report.pptx",
+    sections: [{ location: "Slide 1 · Image 1", text: "Embedded image", kind: "image", imageId: "image1" }] };
+  assert.throws(() => prepareAnalysisSources({ documents: [document] }), /image reference/);
+  const assets = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`image${i + 1}`, `data:image/jpeg;base64,${Buffer.from([i, 0, 1]).toString("base64")}`]));
+  const sections = Object.keys(assets).map((imageId, i) => ({ location: `Slide ${i + 1} · Image 1`, text: "Embedded image", kind: "image" as const, imageId }));
+  const otherAssets = Object.fromEntries(Object.keys(assets).map((key, i) => [key, `data:image/jpeg;base64,${Buffer.from([i, 2, 3]).toString("base64")}`]));
+  assert.throws(() => prepareAnalysisSources({ documents: [{ ...document, sections, assets }, { ...document, id: randomUUID(), sections, assets: otherAssets }] }), /40 distinct images/);
+  const largeAssets = Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`image${i + 1}`, "data:image/jpeg;base64," + "A".repeat(330_000)]));
+  assert.throws(() => prepareAnalysisSources({ documents: [{ ...document, assets: largeAssets }] }), /too much text and image data/);
 });

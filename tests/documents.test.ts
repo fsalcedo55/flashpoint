@@ -5,12 +5,22 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import { strToU8, zipSync } from "fflate";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { MAX_FILE_BYTES } from "../src/lib/documents";
+import { imageDataUrlSchema, MAX_FILE_BYTES } from "../src/lib/documents";
 import { DocumentError, extractDocument, validateUpload } from "../src/server/services/document-extraction";
 import uploadHandler from "../src/pages/api/documents/upload";
-import { docxFixture, pdfFixture } from "./document-fixtures";
+import { docxFixture, docxXmlFixture, pdfFixture } from "./document-fixtures";
+import { pptxFixture } from "./pptx-fixtures";
 
 async function extract(name: string, buffer: Buffer) { return extractDocument(buffer, validateUpload(name, buffer)); }
+
+test("image data requires nonempty Base64 with complete groups and valid padding", () => {
+  for (const payload of ["/9j/2Q==", "AA==", "AAA=", "AAAA", "AAAAAA==", "AAAAAAA="]) {
+    assert.equal(imageDataUrlSchema.safeParse(`data:image/jpeg;base64,${payload}`).success, true, payload);
+  }
+  for (const payload of ["", "A==", "A", "AA", "AAA", "AAAAA", "AA=", "AAAA=", "AA===", "=AAA", "AA==AAAA", "AA\n==", "AA-_"]) {
+    assert.equal(imageDataUrlSchema.safeParse(`data:image/jpeg;base64,${payload}`).success, false, payload);
+  }
+});
 
 test("PDF/DOCX extraction preserves references and keeps embedded markup as plain text", async () => {
   const pdf = await extract("Survey.pdf", await pdfFixture(["First page", "Second page"]));
@@ -70,16 +80,26 @@ test("upload API enforces bounds, logs unexpected failures and removes temporary
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
-  const send = async (buffers: Buffer[]) => {
+  const send = async (buffers: Buffer[], name = "Survey.pdf") => {
     const body = new FormData();
-    buffers.forEach((buffer) => body.append("file", new Blob([new Uint8Array(buffer)]), "Survey.pdf"));
+    buffers.forEach((buffer) => body.append("file", new Blob([new Uint8Array(buffer)]), name));
     return fetch(`http://127.0.0.1:${address.port}`, { method: "POST", body });
   };
   try {
     const response = await send([pdf]);
     assert.equal(response.status, 200); assert.equal((await response.json()).sectionCount, 1);
+    const presentation = await send([pptxFixture([{ paragraphs: ["Report findings"] }])], "Report.pptx");
+    assert.equal(presentation.status, 200);
+    const extracted = await presentation.json();
+    assert.equal(extracted.fileType, "pptx");
+    assert.deepEqual(extracted.sections, [{ location: "Slide 1", text: "Report findings" }]);
     for (const buffers of [[], [pdf, pdf], [Buffer.alloc(MAX_FILE_BYTES + 1)], [Buffer.alloc(0)]]) {
       const rejected = await send(buffers); assert.equal(rejected.status, 400); await rejected.text();
+    }
+    for (const xml of ['<!DOCTYPE x [<!ENTITY secret SYSTEM "file:///etc/passwd">]><x>&secret;</x>', '<numbering value="unterminated></numbering>']) {
+      const rejected = await send([docxXmlFixture("<w:p><w:r><w:t>Q1. Example</w:t></w:r></w:p>", { "word/numbering.xml": xml })], "Invalid.docx");
+      assert.equal(rejected.status, 400);
+      assert.match((await rejected.json()).error, /DOCX XML.*Export a new DOCX/);
     }
     assert.equal(errors.mock.callCount(), 0);
 
@@ -89,7 +109,7 @@ test("upload API enforces bounds, logs unexpected failures and removes temporary
     try {
       const failed = await send([pdf]);
       assert.equal(failed.status, 500);
-      assert.deepEqual(await failed.json(), { error: "This document could not be read. Export a new PDF or DOCX and try again." });
+      assert.deepEqual(await failed.json(), { error: "This document could not be read. Export a new PDF, DOCX or PPTX and try again." });
       assert.deepEqual(errors.mock.calls.map((call) => call.arguments), [
         ["[document-upload] Unexpected upload failure", { name: "Error", code: "EIO" }],
       ]);

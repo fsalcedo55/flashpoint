@@ -4,7 +4,7 @@ import { TRPCError } from "@trpc/server";
 export function aiConfiguration() {
   return {
     provider: "Vercel AI Gateway",
-    model: process.env.AI_GATEWAY_MODEL?.trim() || "openai/gpt-6-luna",
+    model: process.env.AI_GATEWAY_MODEL?.trim() || "openai/gpt-6.1-sol",
     configured: Boolean(process.env.AI_GATEWAY_API_KEY?.trim()),
   };
 }

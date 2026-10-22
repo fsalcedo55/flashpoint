@@ -11,18 +11,27 @@ import { loadCase } from "./fixtures";
 import { coverage, deterministicChecks, gradeChecks, gradeSuggestions, RUBRIC_VERSION } from "./grading";
 import { renderReport, type CaseResult, type Report } from "./report";
 import { calibrateJudge } from "./calibration";
+import { loadPrivateCase } from "./comparison/cases";
+import { MAX_ANALYSIS_CHARACTERS, serializeAnalysisSources } from "../src/lib/analysis";
+import { DOCUMENT_EXTRACTION_PATHS } from "./code-snapshot";
 
 async function main() {
   const { values } = parseArgs({ options: {
     case: { type: "string", multiple: true }, repeat: { type: "string", default: "1" },
-    out: { type: "string", default: ".data/evals" }, list: { type: "boolean" }, reasoning: { type: "string" },
+    out: { type: "string", default: ".data/evals" }, list: { type: "boolean" }, reasoning: { type: "string" }, input: { type: "string" },
   } });
   if (values.list) { cases.forEach((item) => console.log(`${item.id}: ${item.description}`)); return; }
   const reasoning = values.reasoning ?? EXTRACTION_SETTINGS.reasoning;
   if (reasoning !== "low" && reasoning !== "medium") throw new Error("--reasoning must be low or medium.");
   const repeats = Number(values.repeat);
   if (!Number.isInteger(repeats) || repeats < 1 || repeats > 3) throw new Error("--repeat must be 1, 2, or 3.");
-  const selected = values.case?.length ? values.case.map((id) => {
+  if (values.input && values.case?.length) throw new Error("Choose --input or --case, not both.");
+  const privateCase = values.input ? await loadPrivateCase(values.input) : undefined;
+  if (privateCase && (serializeAnalysisSources(privateCase.sources).length > MAX_ANALYSIS_CHARACTERS ||
+    !privateCase.sources.length || new Set(privateCase.sources.map((s) => s.sourceId)).size !== privateCase.sources.length)) {
+    throw new Error("Private input exceeds the analysis budget or has missing/duplicate source IDs.");
+  }
+  const selected = privateCase ? [privateCase.rubric] : values.case?.length ? values.case.map((id) => {
     const item = cases.find((entry) => entry.id === id);
     if (!item) throw new Error(`Unknown case: ${id}. Use --list.`);
     return item;
@@ -33,9 +42,10 @@ async function main() {
   const judgeModel = process.env.AI_EVAL_JUDGE_MODEL?.trim() || "openai/gpt-6.1-sol";
   const model = extractionModel();
   const judge = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY?.trim() })(judgeModel);
-  const paths = ["src/server/ai/preference-extraction.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/server/services/document-extraction.ts", "src/lib/analysis.ts", "src/lib/documents.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "tests/document-fixtures.ts"];
+  const paths = [...DOCUMENT_EXTRACTION_PATHS, "evals/code-snapshot.ts", "src/server/ai/preference-extraction.ts", "src/server/ai/source-prompt.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/lib/analysis.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "evals/comparison/cases.ts", "evals/comparison/strategies.ts", "tests/document-fixtures.ts"];
   const hash = createHash("sha256");
-  for (const path of paths) hash.update(path).update(await readFile(path));
+  const snapshot = await Promise.all(paths.map(async (path) => [path, await readFile(path, "utf8")]));
+  for (const [path, text] of snapshot) hash.update(path).update(text);
   const report: Report = { startedAt: new Date().toISOString(), model: config.model, judgeModel,
     promptVersion: PROMPT_VERSION, extractionSettings: { ...EXTRACTION_SETTINGS, reasoning }, rubricVersion: RUBRIC_VERSION, suiteVersion: SUITE_VERSION,
     codeHash: hash.digest("hex"), gitCommit: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
@@ -44,6 +54,7 @@ async function main() {
     plannedRuns: selected.length * repeats, results: [] };
   await mkdir(resolve(values.out), { recursive: true });
   const directory = await mkdtemp(resolve(values.out, new Date().toISOString().replaceAll(/[:.]/g, "-") + "-"));
+  await writeFile(resolve(directory, "code-snapshot.json"), JSON.stringify(snapshot, null, 2) + "\n");
   const save = async () => {
     await writeFile(resolve(directory, "report.json"), JSON.stringify(report, null, 2) + "\n");
     await writeFile(resolve(directory, "report.md"), renderReport(report));
@@ -51,7 +62,7 @@ async function main() {
   await save();
   console.log(`Model: ${config.model}; reasoning: ${reasoning}; judge: ${judgeModel}. ${report.plannedRuns} runs plus calibration, at most ${report.plannedRuns * 2 + 1} paid model calls; no retries.`);
   console.log(`Reports: ${directory}`);
-  console.log("Checking judge against six labeled examples…");
+  console.log("Checking judge against labeled support, scope and coverage examples…");
   try {
     report.calibration = await calibrateJudge(judge);
   } catch {
@@ -71,7 +82,8 @@ async function main() {
     const result: CaseResult = { caseId: testCase.id, repetition, status: "error", checks: [] };
     let stage = "fixture extraction";
     try {
-      Object.assign(result, await loadCase(testCase));
+      Object.assign(result, privateCase ? { sources: privateCase.sources,
+        sourceHash: createHash("sha256").update(JSON.stringify(privateCase.sources)).digest("hex") } : await loadCase(testCase));
       stage = "generation";
       console.log(`[${testCase.id} ${repetition}/${repeats}] generating…`);
       const start = performance.now();

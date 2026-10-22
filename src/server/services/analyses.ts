@@ -46,7 +46,7 @@ export async function analyzeDocuments(input: AnalysisInput, options: { model?: 
       : await generatePreferences(model, sources);
     const verified = verifyEvidence(generated.output, sources);
     if (generated.output.suggestions.length && !verified.suggestions.length) {
-      throw new TRPCError({ code: "UNPROCESSABLE_CONTENT", message: "None of the suggested preferences had verifiable source quotes. Try again." });
+      throw new TRPCError({ code: "UNPROCESSABLE_CONTENT", message: "None of the suggested preferences had verifiable source evidence. Try again." });
     }
     return {
       rejectedCount: verified.rejectedCount,

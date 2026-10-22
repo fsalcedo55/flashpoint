@@ -10,5 +10,5 @@ export type Preference = {
   rule: string;
   rationale: string;
   status: PreferenceStatus;
-  evidence: { documentId: string; document: string; location: string; quote: string }[];
+  evidence: { documentId: string; document: string; location: string; quote: string; kind?: "image" }[];
 };
