@@ -3,7 +3,8 @@ import { z } from "zod";
 export const MAX_FILE_BYTES = 4 * 1024 * 1024;
 export const MAX_FILES = 10;
 export type DocumentType = "pdf" | "docx" | "pptx";
-export const imageDataUrlSchema = z.string().max(350_000).regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/);
+export const imageDataUrlSchema = z.string().max(350_000)
+  .regex(/^data:image\/jpeg;base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)$/);
 export const imageAssetsSchema = z.record(z.string().regex(/^image\d+$/), imageDataUrlSchema)
   .refine((assets) => Object.keys(assets).length <= 40, "Too many images.");
 export const documentSectionSchema = z.object({

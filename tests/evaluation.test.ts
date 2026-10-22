@@ -56,6 +56,8 @@ test("private cases retain typed PPTX sources and attach deduplicated images to 
     await writeFile(path, JSON.stringify({ sources: [invalid], rubric: simpleCase }));
     await assert.rejects(loadPrivateCase(path));
   }
+  await writeFile(path, JSON.stringify({ sources: [sources[0], { ...sources[1], document: "Different report.pptx" }], rubric: simpleCase }));
+  await assert.rejects(loadPrivateCase(path), /Each document ID must refer to one document name/);
 });
 
 test("grading fails closed on omitted, duplicated or invented IDs", () => {

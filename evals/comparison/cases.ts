@@ -65,6 +65,13 @@ const inputSchema = z.object({ sources: z.array(documentSectionSchema.extend({
 // without putting customer material or paths in the repository.
 export async function loadPrivateCase(path: string): Promise<ComparisonCase> {
   const input = inputSchema.parse(JSON.parse(await readFile(path, "utf8")));
+  const names = new Map<string, string>();
+  for (const source of input.sources) {
+    if (names.has(source.documentId) && names.get(source.documentId) !== source.document) {
+      throw new Error("Each document ID must refer to one document name.");
+    }
+    names.set(source.documentId, source.document);
+  }
   const images = new Set(input.sources.flatMap((source) => source.imageDataUrl ? [source.imageDataUrl] : []));
   if (images.size > 40 || Buffer.byteLength(serializeAnalysisSources(input.sources)) + [...images].reduce((sum, data) => sum + data.length, 0) > MAX_ANALYSIS_REQUEST_BYTES) {
     throw new Error("Private input exceeds the text/image analysis budget.");
