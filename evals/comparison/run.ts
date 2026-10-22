@@ -9,9 +9,11 @@ import { serializeAnalysisSources } from "../../src/lib/analysis";
 import { calibrateJudge } from "../calibration";
 import { coverage, deterministicChecks, gradeChecks, gradeSuggestions, RUBRIC_VERSION, type Check, type Grade } from "../grading";
 import { fictionalCases, loadPrivateCase, validateSources } from "./cases";
+import { DOCUMENT_EXTRACTION_PATHS } from "../code-snapshot";
+import { runStrategies, type Strategy } from "./execution";
 import { chunks, COMPARISON_VERSION, costEstimate, discover, fingerprint, fullContext, newCache, reconcile, retrievalContext, SETTINGS, type OutputData, type Usage } from "./strategies";
 
-type Result = { caseId: string; repetition: number; strategy: "full" | "per-document" | "retrieval"; status: "generated" | "passed" | "quality-failure" | "error";
+type Result = { caseId: string; repetition: number; strategy: Strategy; status: "generated" | "passed" | "quality-failure" | "error";
   elapsedMs?: number; contextPassages?: number; reusedChunks?: number; stageRejections?: number; usage?: Usage[]; estimatedUsd?: number | null;
   raw?: OutputData; suggestions?: VerifiedSuggestion[]; grade?: Grade; coverage?: ReturnType<typeof coverage>; checks?: Check[];
   judgeUsage?: { input: number | null; output: number | null; ms: number }; error?: string };
@@ -34,7 +36,7 @@ async function main() {
   const embeddingId = "openai/text-embedding-3-small";
   const judgeId = process.env.AI_EVAL_JUDGE_MODEL?.trim() || "openai/gpt-6.1-sol";
   const judge = gateway(judgeId);
-  const files = ["evals/comparison/strategies.ts", "evals/comparison/cases.ts", "evals/comparison/run.ts", "evals/grading.ts", "evals/calibration.ts", "evals/cases.ts", "evals/fixtures.ts", "src/lib/analysis.ts", "src/server/ai/preference-extraction.ts", "src/server/ai/provider.ts", "src/server/services/document-extraction.ts"];
+  const files = [...DOCUMENT_EXTRACTION_PATHS, "evals/code-snapshot.ts", "evals/comparison/strategies.ts", "evals/comparison/cases.ts", "evals/comparison/execution.ts", "evals/comparison/run.ts", "evals/grading.ts", "evals/calibration.ts", "evals/cases.ts", "evals/fixtures.ts", "tests/document-fixtures.ts", "src/lib/analysis.ts", "src/server/ai/preference-extraction.ts", "src/server/ai/source-prompt.ts", "src/server/ai/provider.ts"];
   const codeSnapshot = await Promise.all(files.map(async (file) => [file, await readFile(file, "utf8")]));
   const report = { startedAt: new Date().toISOString(), completedAt: null as string | null, version: COMPARISON_VERSION,
     model: config.model, embeddingModel: embeddingId, judgeModel: judgeId, promptVersion: PROMPT_VERSION, rubricVersion: RUBRIC_VERSION,
@@ -95,36 +97,38 @@ async function main() {
         const output = await fullContext(model, sources);
         await record("full", output, [output.usage], output.usage.ms, sources.length);
       };
-      try {
-        // Alternate placement to reduce a consistent model/provider warmup advantage.
-        if (repetition % 2 === 1) await runFull();
-        console.log(`[${rubric.id} ${repetition}] shared discovery…`);
-        const discovery = await discover(model, sources, cache);
-        await artifact("discovery", discovery);
-        const runPerDocument = async () => {
+      await runStrategies(repetition, {
+        full: runFull,
+        discover: async () => {
+          console.log(`[${rubric.id} ${repetition}] shared discovery…`);
+          const discovery = await discover(model, sources, cache);
+          await artifact("discovery", discovery);
+          return discovery;
+        },
+        perDocument: async (discovery) => {
           const output = await reconcile(model, sources, discovery.context, discovery);
           await record("per-document", output, [...discovery.usage, output.usage], discovery.ms + output.usage.ms, discovery.context.length,
             discovery.reused, discovery.mapped.reduce((sum, item) => sum + item.rejected, 0));
-        };
-        const runRetrieval = async () => {
+        },
+        retrieval: async (discovery) => {
           console.log(`[${rubric.id} ${repetition}] embedding and retrieval…`);
           const retrieved = await retrievalContext(gateway.embeddingModel(embeddingId), sources, discovery, cache);
           await artifact("retrieval", retrieved);
           const output = await reconcile(model, sources, retrieved.context, discovery);
           await record("retrieval", output, [...discovery.usage, ...retrieved.usage, output.usage], discovery.ms + retrieved.ms + output.usage.ms,
             retrieved.context.length, discovery.reused, discovery.mapped.reduce((sum, item) => sum + item.rejected, 0));
-        };
-        if (repetition % 2 === 1) { await runPerDocument(); await runRetrieval(); }
-        else { await runRetrieval(); await runPerDocument(); await runFull(); }
-      } catch {
-        // Do not serialize SDK exceptions: they may contain private request bodies.
-        for (const strategy of ["full", "per-document", "retrieval"] as const) {
-          if (!report.results.some((r) => r.caseId === rubric.id && r.repetition === repetition && r.strategy === strategy)) {
-            report.results.push({ caseId: rubric.id, repetition, strategy, status: "error", error: "Generation/dependency failed; no automatic retry. In-flight/failed calls may incur unreported cost." });
+        },
+        onError: async (strategy) => {
+          // Do not serialize SDK exceptions: they may contain private request bodies.
+          const existing = report.results.find((r) => r.caseId === rubric.id && r.repetition === repetition && r.strategy === strategy);
+          const error = "Generation/dependency failed; no automatic retry. In-flight/failed calls may incur unreported cost.";
+          if (existing) { existing.status = "error"; existing.error = error; }
+          else {
+            report.results.push({ caseId: rubric.id, repetition, strategy, status: "error", error });
           }
-        }
-        await save(); console.log(`[${rubric.id} ${repetition}] operational failure; inspect retained artifacts.`);
-      }
+          await save(); console.log(`[${rubric.id} ${repetition}] ${strategy}: operational failure; inspect retained artifacts.`);
+        },
+      });
     }
   }
   report.completedAt = new Date().toISOString(); await save();

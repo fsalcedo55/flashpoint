@@ -5,6 +5,7 @@ import type { SourcePassage } from "../src/lib/analysis";
 import { serializeAnalysisSources } from "../src/lib/analysis";
 import { chunks, costEstimate, discover, newCache, reconcile, retrieve, withNeighbors, type Discovery } from "../evals/comparison/strategies";
 import { fictionalCases, longQuestionnaire, validateSources } from "../evals/comparison/cases";
+import { runStrategies, type Strategy } from "../evals/comparison/execution";
 
 const source = (n: number, doc = "one"): SourcePassage => ({ sourceId: `${doc}-${n}`, documentId: doc, document: `${doc}.docx`, location: `Paragraph ${n}`, text: `Question ${n}: give a fully labeled opinion rating.` });
 const usage = { inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 20, text: 15, reasoning: 5 } };
@@ -86,4 +87,26 @@ test("controlled load preserves all 600 paragraphs after grouping and initial ID
   assert.ok(serializeAnalysisSources(long.sources).length > 80_000);
   for (const item of [initial, added, long]) assert.doesNotThrow(() => validateSources(item.sources));
   assert.throws(() => validateSources([source(1), source(1)]), /duplicate/);
+});
+
+test("strategy failures do not skip independent comparisons in either run order", async () => {
+  for (const repetition of [1, 2]) for (const failure of ["full", "per-document", "retrieval", "discovery", undefined]) {
+    const calls: string[] = [], errors: Strategy[] = [];
+    const run = async (strategy: string) => { calls.push(strategy); if (strategy === failure) throw new Error("provider failure"); };
+    const discovery = { context: [source(1)] };
+    await runStrategies(repetition, {
+      full: () => run("full"),
+      discover: async () => { await run("discovery"); return discovery; },
+      perDocument: async (input) => { assert.equal(input, discovery); await run("per-document"); },
+      retrieval: async (input) => { assert.equal(input, discovery); await run("retrieval"); },
+      onError: async (strategy) => { errors.push(strategy); },
+    });
+    const order = repetition === 1 ? ["full", "discovery", "per-document", "retrieval"] : ["discovery", "retrieval", "per-document", "full"];
+    assert.deepEqual(calls, failure === "discovery" ? order.filter((item) => item === "full" || item === "discovery") : order);
+    assert.deepEqual(errors, failure === "discovery" ? ["per-document", "retrieval"] : failure ? [failure] : []);
+  }
+});
+
+test("text-only architecture prototypes reject image cases instead of silently dropping pixels", () => {
+  assert.throws(() => validateSources([{ ...source(1), kind: "image", imageDataUrl: "data:image/jpeg;base64,AA==" }]), /Use eval:ai/);
 });

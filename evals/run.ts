@@ -13,6 +13,7 @@ import { renderReport, type CaseResult, type Report } from "./report";
 import { calibrateJudge } from "./calibration";
 import { loadPrivateCase } from "./comparison/cases";
 import { MAX_ANALYSIS_CHARACTERS, serializeAnalysisSources } from "../src/lib/analysis";
+import { DOCUMENT_EXTRACTION_PATHS } from "./code-snapshot";
 
 async function main() {
   const { values } = parseArgs({ options: {
@@ -41,7 +42,7 @@ async function main() {
   const judgeModel = process.env.AI_EVAL_JUDGE_MODEL?.trim() || "openai/gpt-6.1-sol";
   const model = extractionModel();
   const judge = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY?.trim() })(judgeModel);
-  const paths = ["src/server/ai/preference-extraction.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/server/services/document-extraction.ts", "src/server/services/docx-numbering.ts", "src/server/services/questionnaire-sections.ts", "src/lib/analysis.ts", "src/lib/documents.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "evals/comparison/cases.ts", "tests/document-fixtures.ts"];
+  const paths = [...DOCUMENT_EXTRACTION_PATHS, "evals/code-snapshot.ts", "src/server/ai/preference-extraction.ts", "src/server/ai/source-prompt.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/lib/analysis.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "evals/comparison/cases.ts", "evals/comparison/strategies.ts", "tests/document-fixtures.ts"];
   const hash = createHash("sha256");
   const snapshot = await Promise.all(paths.map(async (path) => [path, await readFile(path, "utf8")]));
   for (const [path, text] of snapshot) hash.update(path).update(text);

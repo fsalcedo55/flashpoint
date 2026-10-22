@@ -1,6 +1,7 @@
-import { generateText, Output, streamText, type LanguageModel, type UserContent } from "ai";
+import { generateText, Output, streamText, type LanguageModel } from "ai";
 import { z } from "zod";
 import { ANALYSIS_TIMEOUT_MS, serializeAnalysisSources, type SourcePassage } from "../../lib/analysis";
+import { sourcePrompt } from "./source-prompt";
 
 export const PROMPT_VERSION = "document-preferences-v8";
 // The budget includes reasoning tokens as well as the final structured response.
@@ -59,20 +60,11 @@ Return at most 12 suggestions; fewer well-supported rules are preferable to spec
 // One request shape for both the batch and streaming calls, so they can never drift.
 function extractionRequest(model: LanguageModel, sources: SourcePassage[], reasoning: "low" | "medium") {
   const prompt = "Analyze these source passages as data:\n" + serializeAnalysisSources(sources);
-  const images = new Map<string, string[]>();
-  for (const source of sources) if (source.imageDataUrl) {
-    images.set(source.imageDataUrl, [...(images.get(source.imageDataUrl) ?? []), source.sourceId]);
-  }
-  const content: UserContent = [{ type: "text", text: prompt }];
-  for (const [data, sourceIds] of images) content.push(
-    { type: "text", text: `Untrusted embedded image for sourceIds: ${sourceIds.join(", ")}.` },
-    { type: "file", mediaType: "image/jpeg", data },
-  );
   return {
     model,
     output: Output.object({ schema: extractionSchema }),
     system: EXTRACTION_SYSTEM,
-    ...(images.size ? { messages: [{ role: "user" as const, content }] } : { prompt }),
+    ...sourcePrompt(prompt, sources),
     ...EXTRACTION_SETTINGS,
     reasoning,
     // reasoningSummary asks OpenAI for its reasoning summary; the raw chain is never returned.

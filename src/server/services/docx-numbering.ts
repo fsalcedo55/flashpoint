@@ -1,4 +1,5 @@
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import { DocumentError } from "./document-error";
 
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const children = (node: Element, name: string): Element[] => Array.from(node.childNodes)
@@ -10,8 +11,8 @@ const value = (node: Element | undefined, name: string) => attr(child(node, name
 function parse(bytes: Uint8Array): Document {
   const xml = Buffer.from(bytes).toString("utf8");
   // Word parts do not need DTDs. Never resolve custom or external entities.
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("Unsupported DOCX XML declaration.");
-  return new DOMParser({ errorHandler: () => { throw new Error("Malformed DOCX XML."); } }).parseFromString(xml, "application/xml");
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new DocumentError("Unsupported DOCX XML declaration. Export a new DOCX and try again.");
+  return new DOMParser({ errorHandler: () => { throw new DocumentError("Malformed DOCX XML. Export a new DOCX and try again."); } }).parseFromString(xml, "application/xml");
 }
 
 function marker(number: number, format: string): string | undefined {

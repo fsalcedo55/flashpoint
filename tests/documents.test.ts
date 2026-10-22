@@ -8,7 +8,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { MAX_FILE_BYTES } from "../src/lib/documents";
 import { DocumentError, extractDocument, validateUpload } from "../src/server/services/document-extraction";
 import uploadHandler from "../src/pages/api/documents/upload";
-import { docxFixture, pdfFixture } from "./document-fixtures";
+import { docxFixture, docxXmlFixture, pdfFixture } from "./document-fixtures";
 import { pptxFixture } from "./pptx-fixtures";
 
 async function extract(name: string, buffer: Buffer) { return extractDocument(buffer, validateUpload(name, buffer)); }
@@ -86,6 +86,11 @@ test("upload API enforces bounds, logs unexpected failures and removes temporary
     assert.deepEqual(extracted.sections, [{ location: "Slide 1", text: "Report findings" }]);
     for (const buffers of [[], [pdf, pdf], [Buffer.alloc(MAX_FILE_BYTES + 1)], [Buffer.alloc(0)]]) {
       const rejected = await send(buffers); assert.equal(rejected.status, 400); await rejected.text();
+    }
+    for (const xml of ['<!DOCTYPE x [<!ENTITY secret SYSTEM "file:///etc/passwd">]><x>&secret;</x>', '<numbering value="unterminated></numbering>']) {
+      const rejected = await send([docxXmlFixture("<w:p><w:r><w:t>Q1. Example</w:t></w:r></w:p>", { "word/numbering.xml": xml })], "Invalid.docx");
+      assert.equal(rejected.status, 400);
+      assert.match((await rejected.json()).error, /DOCX XML.*Export a new DOCX/);
     }
     assert.equal(errors.mock.callCount(), 0);
 

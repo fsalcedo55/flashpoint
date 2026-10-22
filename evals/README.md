@@ -26,7 +26,7 @@ Runs use the app's `AI_GATEWAY_API_KEY` and `AI_GATEWAY_MODEL`. Node loads `.env
 
 JSON and readable Markdown reports are written after every completed case to a fresh directory under `.data/evals/` (ignored by Git). `--out <directory>` changes the parent directory. Reports contain fictional source text, raw suggestions, verifier rejections, grades, coverage, model IDs, generation settings, prompt/rubric versions, source/code hashes, latency, token counts, and Git state. They do not include credentials or raw SDK errors. An interrupted report remains explicitly incomplete.
 
-`--input` uses the private-case format described below and cannot be combined with `--case`. It runs the single-call production extractor on already-extracted text; it does not reopen the original files. Such reports contain private content and must stay in ignored storage. Each run saves an exact `code-snapshot.json`. Regrade saved baseline outputs under the same rubric when changing the judge; do not compare scores from different rubrics as though only extraction changed.
+`--input` uses the private-case format described below and cannot be combined with `--case`. It runs the single-call production extractor on already-extracted sources; it does not reopen the original files. PPTX source kinds and image data are preserved. Image sources must include a bounded JPEG `imageDataUrl`; the extractor and judge receive the pixels as attachments, not base64 text. Such reports contain private content and must stay in ignored storage. Each run saves an exact `code-snapshot.json`, including the DOCX/PPTX reader helpers. Regrade saved baseline outputs under the same rubric when changing the judge; do not compare scores from different rubrics as though only extraction changed.
 
 Exit codes: `0` all quality gates pass; `1` at least one quality failure; `2` setup, generation, or grading failed. Operational errors are never treated as passing cases. Rerun a failing case explicitly; earlier failures remain in their original report.
 
@@ -49,7 +49,7 @@ The analysis size limit measures the exact serialized source data sent to the mo
 
 ## Reading the results
 
-**Deterministic checks** enforce verbatim citations, expected abstention/nonempty output, and rejection of the attack marker/instruction citations. A verifier rejection remains a recorded evaluation failure, even if the UI would safely discard that suggestion.
+**Deterministic checks** enforce verbatim text citations, valid image references, expected abstention/nonempty output, and rejection of the attack marker/instruction citations. Image observations require semantic grading against the pixels; matching a source ID does not establish visual support. A verifier rejection remains a recorded evaluation failure, even if the UI would safely discard that suggestion.
 
 Before extraction, eleven labeled examples check supported rules, irrelevant quotes, parser advice, universal claims, equivalent response-format wording, missing scale context and invented response-code mappings. Two coverage targets check that strong evidence is not discarded because a separate weak suggestion mentions the same topic. A failed or unavailable calibration stops the run with exit code 2; it is not a parser failure. This small calibration is a sanity check, not comprehensive judge validation.
 
@@ -58,6 +58,8 @@ Before extraction, eleven labeled examples check supported rules, irrelevant quo
 **Target coverage** measures seven curated patterns in the recurring and injection cases. It is reported separately from pass/fail. Valid additional preferences are allowed. Patterns supported only by a weak, overgeneralized, or non-reusable suggestion are not counted. Coverage is not exhaustive recall, and a favorable single run is not a reliability estimate.
 
 Rubric v3 asks for the smallest sufficient set of strong suggestions for each target. “A or B” requires either; “A and B” requires both. Prescribing an answering mode counts as a response-format choice without requiring the phrase “label the response type,” unless a target specifically asks for labeling. Deterministic coverage still fails closed if a judge incorrectly links a weak suggestion.
+
+Rubric v4 retains those rules and adds presentation-specific scope and image grounding. The existing calibration covers survey text, not visual judgments; image grades still need manual review.
 
 ## Document structure
 
@@ -86,6 +88,8 @@ This is an offline experiment, not an application architecture change. It compar
 1. **Full context:** the production extraction prompt receives the entire collection in one call.
 2. **Per document:** extract local observations and explicit exceptions from each document, then reconcile them using cited source passages and nearby context. Documents larger than 30,000 serialized characters are split at paragraph boundaries.
 3. **Extraction plus retrieval:** reuse the same local observations, embed all source blocks with `openai/text-embedding-3-small`, search for each candidate rule and a general exceptions query, then reconcile with the additional original passages. Vectors live in memory; no database is needed.
+
+These comparison prototypes support text sources only. Image-inclusive cases are rejected before any paid calls; use `eval:ai` to evaluate them with the production extractor. Each strategy runs independently after shared discovery: a retrieval failure does not skip the other strategies, and a discovery failure only blocks its two dependents. Failed operations are recorded without automatic retries.
 
 The third strategy tests whether retrieval improves reconciliation **after discovery**. It is not a pure top-k RAG replacement for reading the collection. Shared discovery is physically executed once and charged to both candidate architectures in comparative cost/latency. The model, medium reasoning, evidence rules, final schema and 12-suggestion limit are shared. Stage-specific instructions and the aggregate number of calls differ; this compares complete implementations, not an isolated effect of chunking. Rubrics never go to extraction or retrieval.
 

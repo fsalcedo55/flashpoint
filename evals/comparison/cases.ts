@@ -4,7 +4,8 @@ import { cases, type EvalCase } from "../cases";
 import { loadCase } from "../fixtures";
 import { extractDocument } from "../../src/server/services/document-extraction";
 import { docxFixture } from "../../tests/document-fixtures";
-import { serializeAnalysisSources, type SourcePassage } from "../../src/lib/analysis";
+import { MAX_ANALYSIS_REQUEST_BYTES, serializeAnalysisSources, type SourcePassage } from "../../src/lib/analysis";
+import { documentSectionSchema, imageDataUrlSchema } from "../../src/lib/documents";
 import { chunks, SETTINGS } from "./strategies";
 
 export type ComparisonCase = { rubric: EvalCase; sources: SourcePassage[]; reusePrevious: boolean };
@@ -29,6 +30,7 @@ export function longQuestionnaire(): string[] {
 }
 
 export function validateSources(sources: SourcePassage[]) {
+  if (sources.some((source) => source.kind === "image" || source.imageDataUrl)) throw new Error("Architecture comparison supports text sources only. Use eval:ai for image-inclusive cases.");
   if (!sources.length || new Set(sources.map((source) => source.sourceId)).size !== sources.length) throw new Error("Missing or duplicate source IDs.");
   if (new Set(sources.map((source) => source.documentId)).size > 10 || serializeAnalysisSources(sources).length > SETTINGS.maxSourceCharacters) throw new Error("Comparison input exceeds its explicit safety budget.");
   if (chunks(sources, SETTINGS.mapCharacters).length > 12) throw new Error("Comparison would require too many discovery calls.");
@@ -52,7 +54,10 @@ export async function fictionalCases(): Promise<ComparisonCase[]> {
 }
 
 const criterion = z.object({ id: z.string(), description: z.string() });
-const inputSchema = z.object({ sources: z.array(z.object({ sourceId: z.string(), documentId: z.string(), document: z.string(), location: z.string(), text: z.string().min(1), extractionWarnings: z.array(z.string().max(500)).max(20).optional() })),
+const inputSchema = z.object({ sources: z.array(documentSectionSchema.extend({
+  sourceId: z.string(), documentId: z.string(), document: z.string(), text: z.string().min(1),
+  imageDataUrl: imageDataUrlSchema.optional(), extractionWarnings: z.array(z.string().max(500)).max(20).optional(),
+}).refine((source) => (source.kind === "image") === Boolean(source.imageDataUrl), "Image sources must include their image data; other sources cannot attach images.")),
   rubric: z.object({ id: z.string(), description: z.string(), criteria: z.array(criterion), patterns: z.array(criterion) }),
 });
 
@@ -60,5 +65,9 @@ const inputSchema = z.object({ sources: z.array(z.object({ sourceId: z.string(),
 // without putting customer material or paths in the repository.
 export async function loadPrivateCase(path: string): Promise<ComparisonCase> {
   const input = inputSchema.parse(JSON.parse(await readFile(path, "utf8")));
+  const images = new Set(input.sources.flatMap((source) => source.imageDataUrl ? [source.imageDataUrl] : []));
+  if (images.size > 40 || Buffer.byteLength(serializeAnalysisSources(input.sources)) + [...images].reduce((sum, data) => sum + data.length, 0) > MAX_ANALYSIS_REQUEST_BYTES) {
+    throw new Error("Private input exceeds the text/image analysis budget.");
+  }
   return { ...input, rubric: { ...input.rubric, files: [] }, reusePrevious: false };
 }
