@@ -2,11 +2,19 @@ import { z } from "zod";
 
 export const MAX_FILE_BYTES = 4 * 1024 * 1024;
 export const MAX_FILES = 10;
-export type DocumentType = "pdf" | "docx";
-export type DocumentSection = { location: string; text: string };
+export type DocumentType = "pdf" | "docx" | "pptx";
+export const imageAssetsSchema = z.record(z.string().regex(/^image\d+$/), z.string().max(350_000)
+  .regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/)).refine((assets) => Object.keys(assets).length <= 40, "Too many images.");
+export const documentSectionSchema = z.object({
+  location: z.string(), text: z.string(),
+  kind: z.enum(["notes", "chart", "formatting", "image"]).optional(),
+  imageId: z.string().regex(/^image\d+$/).optional(),
+});
+export type DocumentSection = z.infer<typeof documentSectionSchema>;
 export const extractedDocumentSchema = z.object({
-  fileType: z.enum(["pdf", "docx"]),
-  sections: z.array(z.object({ location: z.string(), text: z.string() })),
+  fileType: z.enum(["pdf", "docx", "pptx"]),
+  sections: z.array(documentSectionSchema),
+  assets: imageAssetsSchema.optional(),
   warnings: z.array(z.string()),
   characterCount: z.number(),
   sectionCount: z.number(),
@@ -22,6 +30,14 @@ export type SessionDocument = ExtractedDocument & {
   status: "processing" | "ready" | "failed";
   error?: string;
 };
+
+export function documentTypeFromName(name: string): DocumentType | undefined {
+  if (!name.includes(".")) return undefined;
+  const extension = name.split(".").pop()?.toLowerCase();
+  return extension === "pdf" || extension === "docx" || extension === "pptx" ? extension : undefined;
+}
+
+export const sectionLabels: Record<DocumentType, string> = { pdf: "pages", docx: "sections", pptx: "slides" };
 
 export function formatFileSize(bytes: number) {
   return bytes >= 1024 * 1024

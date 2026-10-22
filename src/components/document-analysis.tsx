@@ -55,7 +55,7 @@ export function AnalysisNotices() {
 }
 
 // Fallback while no reasoning summary has arrived yet (or the model returns none).
-const stages = ["Reading the documents", "Looking for preferences", "Checking source quotes"];
+const stages = ["Reading the documents", "Looking for preferences", "Checking source evidence"];
 
 function useStage(active: boolean) {
   const [stage, setStage] = useState(0);

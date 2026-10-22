@@ -26,6 +26,6 @@ export default async function handler(request: NextApiRequest, response: NextApi
       });
     }
     return response.status(error instanceof DocumentError ? 400 : 500).json({ error: error instanceof DocumentError
-      ? error.message : "This document could not be read. Export a new PDF or DOCX and try again." });
+      ? error.message : "This document could not be read. Export a new PDF, DOCX or PPTX and try again." });
   }
 }

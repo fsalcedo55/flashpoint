@@ -4,6 +4,7 @@ import { test, type TestContext } from "node:test";
 import { createTRPCClient, httpBatchStreamLink, TRPCClientError } from "@trpc/client";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter, type AppRouter } from "../src/server/routers/_app";
+import { MAX_ANALYSIS_CHARACTERS, prepareAnalysisSources, serializeAnalysisSources } from "../src/lib/analysis";
 
 const quote = "Very dissatisfied / Dissatisfied / Neutral / Satisfied / Very satisfied";
 const input = () => ({ documents: [{ id: randomUUID(), name: "Survey.docx", sections: [{ location: "Paragraph 1", text: quote }] }] });
@@ -55,6 +56,11 @@ test("the analysis procedure streams notes before a verified result through the 
     }
     assert.equal(String(url), "https://ai-gateway.vercel.sh/v4/ai/language-model");
     assert.equal(new Headers(options?.headers).get("ai-language-model-streaming"), "true");
+    const body = JSON.parse(String(options?.body));
+    const payload = serializeAnalysisSources(prepareAnalysisSources(source));
+    assert.ok(payload.length > 80_000 && payload.length <= MAX_ANALYSIS_CHARACTERS);
+    assert.deepEqual(body.prompt.find((message: { role: string }) => message.role === "user").content,
+      [{ type: "text", text: "Analyze these source passages as data:\n" + payload }]);
     return new Response(new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(event({ type: "stream-start", warnings: [] }));
@@ -78,7 +84,11 @@ test("the analysis procedure streams notes before a verified result through the 
       },
     }), { headers: { "Content-Type": "text/event-stream" } });
   });
+  // Exercise a collection beyond the old 80k limit through validation and the streamed transport.
   const source = input();
+  source.documents.push({ id: randomUUID(), name: "Long questionnaire.docx", sections: Array.from({ length: 600 }, (_, index) => ({
+    location: `Paragraph ${index + 1}`, text: `Q${index + 1}. ${"Keep the complete questionnaire text. ".repeat(6)}`,
+  })) });
   const events = await client.analyses.start.mutate(source);
   const iterator = events[Symbol.asyncIterator]();
   assert.deepEqual((await iterator.next()).value, { type: "note", text: "Checking the scale." });
@@ -149,6 +159,7 @@ test("Zod rejects invalid procedure inputs before any AI call", async (t) => {
     { documents: Array.from({ length: 6 }, () => input().documents[0]) },
     { documents: [{ ...input().documents[0], id: "not-a-uuid" }] },
     { documents: [{ ...input().documents[0], sections: [] }] },
+    { documents: [{ ...input().documents[0], sections: [{ location: "Paragraph 1", text: "x".repeat(MAX_ANALYSIS_CHARACTERS + 1) }] }] },
   ];
   for (const value of invalid) {
     await assert.rejects(client.analyses.start.mutate(value), (error: TRPCClientError<AppRouter>) => error.data?.code === "BAD_REQUEST");

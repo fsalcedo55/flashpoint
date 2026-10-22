@@ -11,7 +11,7 @@ Four fictional questionnaires for testing the Flashpoint preferences parser. All
 
 Counts include eligibility questions. The first three are designed as work by the same fictional researcher. The fourth represents that researcher implementing a client's legacy specification. Programming notes inside the files are source material about survey design, not instructions to the AI or to the tester.
 
-Validation: all 58 question prompts passed through the app's local DOCX extractor without warnings. The four files produce 16,484 extracted characters, below the current 80,000-character analysis limit. Every rendered page was checked for layout issues. This validation did not call an AI provider or change saved preferences.
+Validation: all 58 question prompts passed through the app's local DOCX extractor without warnings. The four files produce 16,484 extracted characters, below the current 200,000-character analysis limit. Every rendered page was checked for layout issues. This validation did not call an AI provider or change saved preferences.
 
 ## First run
 

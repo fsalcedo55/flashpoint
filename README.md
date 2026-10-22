@@ -1,8 +1,8 @@
 # Flashpoint Preferences
 
-A standalone preferences parser built for survey questionnaires.
+A standalone preferences parser for survey questionnaires and research presentations.
 
-Upload PDF or DOCX questionnaires to detect patterns in how you write and structure surveys. Review each suggested preference alongside its source evidence, then confirm, edit, or deny it. Only confirmed preferences become part of your profile for the current session.
+Upload PDF, DOCX or PPTX files to detect patterns in how you write questionnaires and organize research presentations. Review each suggested preference alongside its source evidence, then confirm, edit, or deny it. Only confirmed preferences become part of your profile for the current session.
 
 Each tab has its own temporary workspace in React state. Navigating within the app keeps documents and decisions; refreshing or closing the tab clears them. There is no database, browser storage, or login.
 
@@ -35,7 +35,7 @@ cp -n .env.example .env.local
 
 Add your `AI_GATEWAY_API_KEY` to `.env.local` to enable preference extraction. This file is ignored by Git; keep the key there.
 
-The default extractor is GPT-6 Luna with medium reasoning. Change `AI_GATEWAY_MODEL` to use another Gateway model; see the [evaluation results and tradeoffs](evals/IMPROVEMENTS.md).
+The default extractor is GPT-6.1 Sol with medium reasoning. Change `AI_GATEWAY_MODEL` to use another Gateway model; see the [evaluation results and tradeoffs](evals/EXTRACTION-REFINEMENT.md).
 
 ```bash
 pnpm dev
@@ -43,9 +43,15 @@ pnpm dev
 
 Open [localhost:3000](http://127.0.0.1:3000). Use the [sample questionnaires](tests/fixtures/questionnaires/README.md) to try the upload → analysis → review → profile flow.
 
-Uploads are processed per request; temporary server files are removed after reading. Originals and results stay in browser memory. Selected text is sent through Vercel AI Gateway for analysis; the API key stays on the server.
+Uploads are processed per request; temporary server files are removed after reading. Originals and results stay in browser memory. Selected text and supported embedded presentation images are sent through Vercel AI Gateway for analysis; the API key stays on the server. The model must support image input for decks containing images.
 
-The demo accepts PDF/DOCX files up to 4 MB each, leaving room for multipart overhead under [Vercel’s 4.5 MB request limit](https://vercel.com/docs/functions/limitations#request-body-size). Deployment needs the two AI environment variables above.
+DOCX extraction groups labeled questions with their options, keeps table rows, and preserves supported automatic list numbers. Complex numbering and merged layouts produce warnings; suggestions still require review. PDFs use page text without OCR.
+
+PPTX extraction preserves slide order (up to 200 slides) and labels text/tables, speaker notes, chart types/cached values, formatting properties, and embedded images as separate sources. Hidden slides and their associated content are excluded. Supported font, color, size, background and placeholder properties include layout/master/theme inheritance; this is not a rendered slide. Complex effects, automatic bullets and some inherited styling remain incomplete. External links and linked workbooks are never opened. PNG, JPEG, GIF and WebP assets are normalized to JPEG at up to 1024 pixels; SVG/EMF/WMF are flagged as unsupported. Image observations appear beside their source image for review, separately from verified text quotes.
+
+The demo accepts PDF/DOCX/PPTX files up to 4 MB each, leaving room for multipart overhead under [Vercel’s 4.5 MB request limit](https://vercel.com/docs/functions/limitations#request-body-size). Deployment needs the two AI environment variables above.
+
+Each analysis accepts up to five documents, 400,000 characters of serialized source text/references, and 40 distinct images, within a 3.5 MB combined request budget. Each upload allows 40 images and 2.4 MB of encoded image data. Content exceeding a budget is rejected with an explanation, never silently truncated. One model call gets up to 180 seconds; the browser waits 210 seconds and the API route allows 240 seconds. These are demo budgets, not the model's context limit. Deployment uses [Vercel Fluid Compute](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Public deployment
 

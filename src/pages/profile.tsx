@@ -40,7 +40,7 @@ export default function ProfilePage() {
                         <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-primary"><Check className="size-3" aria-hidden="true" /></span>
                         <div className="min-w-0">
                           <h3 className="break-words text-base leading-7 font-medium">{item.rule}</h3>
-                          <p className="mt-2 text-xs text-muted-foreground">Confirmed by you · {item.evidence.length} {item.evidence.length === 1 ? "excerpt" : "excerpts"}</p>
+                          <p className="mt-2 text-xs text-muted-foreground">Confirmed by you · {item.evidence.length} {item.evidence.length === 1 ? "reference" : "references"}</p>
                         </div>
                       </div>
                       <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t pt-4">

@@ -3,7 +3,7 @@ import { Download, FileText, LoaderCircle, RefreshCw, Trash2 } from "lucide-reac
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatFileSize, type SessionDocument } from "@/lib/documents";
+import { formatFileSize, sectionLabels, type SessionDocument } from "@/lib/documents";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/components/workspace-provider";
 import { AnalysisNotices, AnalysisRuns, SelectionBar } from "@/components/document-analysis";
@@ -15,7 +15,7 @@ const rowAction = cn("shrink-0 text-muted-foreground/60 opacity-0 transition-[op
 function DocumentText({ document }: { document: SessionDocument }) {
   return <>
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
-      <p className="text-xs text-muted-foreground">{document.sectionCount} {document.fileType === "pdf" ? "pages" : "paragraphs"} · {document.characterCount.toLocaleString()} characters</p>
+      <p className="text-xs text-muted-foreground">{document.sectionCount} {sectionLabels[document.fileType]} · {document.characterCount.toLocaleString()} characters</p>
       <Button asChild variant="outline" size="sm"><a href={document.url} download={document.name}><Download aria-hidden="true" /> Download original</a></Button>
     </div>
     <div className="min-h-0 overflow-y-auto overscroll-contain pr-2">
@@ -23,7 +23,12 @@ function DocumentText({ document }: { document: SessionDocument }) {
       <div className="space-y-6">
         {document.sections.map((section) => <section key={section.location} aria-label={section.location}>
           <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{section.location}</h3>
-          <p className="whitespace-pre-wrap break-words text-sm leading-7">{section.text || "No readable text on this page."}</p>
+          <p className="whitespace-pre-wrap break-words text-sm leading-7">{section.text || "No extracted text in this section."}</p>
+          {section.imageId && document.assets?.[section.imageId] ? (
+            // Already resized and validated during upload; stays in session memory.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={document.assets[section.imageId]} alt={`Embedded image from ${section.location}`} className="mt-3 max-h-80 max-w-full rounded-md object-contain" />
+          ) : null}
         </section>)}
       </div>
     </div>
@@ -58,9 +63,9 @@ export function SavedDocuments() {
             </label>
             <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              {ready ? <button type="button" className="break-words text-left text-sm font-medium underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none" aria-label={`View text of ${document.name}`} onClick={() => setSelectedId(document.id)}>{document.name}</button>
+              {ready ? <button type="button" className="break-words text-left text-sm font-medium underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none" aria-label={`View content of ${document.name}`} onClick={() => setSelectedId(document.id)}>{document.name}</button>
                 : <p className="break-words text-sm font-medium">{document.name}</p>}
-              <p className="mt-0.5 text-xs text-muted-foreground">{document.fileType.toUpperCase()} · {formatFileSize(document.byteSize)}{ready ? ` · ${document.sectionCount} ${document.fileType === "pdf" ? "pages" : "paragraphs"}` : ""}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{document.fileType.toUpperCase()} · {formatFileSize(document.byteSize)}{ready ? ` · ${document.sectionCount} ${sectionLabels[document.fileType]}` : ""}</p>
             </div>
             {processing ? <Badge variant="secondary" className="shrink-0 gap-1 rounded-md text-xs"><LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Processing</Badge> : null}
             {document.status === "failed" ? <Button variant="outline" size="sm" className="shrink-0" aria-label={`Retry extraction of ${document.name}`} onClick={() => retryDocument(document.id)}><RefreshCw className="size-3" aria-hidden="true" />Retry</Button> : null}
@@ -68,7 +73,6 @@ export function SavedDocuments() {
             <Button variant="ghost" size="icon-sm" className={cn(rowAction, "-mr-2 hover:text-destructive")} aria-label={`Delete ${document.name}`} disabled={processing || isAnalyzing} onClick={() => { clearError(); setDeletingId(document.id); }}><Trash2 aria-hidden="true" /></Button>
           </div>
           {document.error ? <p role="alert" className="mt-2 pl-10 text-xs leading-5 text-destructive">{document.error}</p> : null}
-          {document.warnings.map((warning) => <p key={warning} className="mt-2 pl-10 text-xs leading-5 text-muted-foreground">{warning}</p>)}
         </li>;
       })}
     </ul>
@@ -78,7 +82,7 @@ export function SavedDocuments() {
       <DialogContent className="flex max-h-[85svh] flex-col p-5 sm:max-w-3xl sm:p-6">
         <DialogHeader>
           <DialogTitle className="break-words leading-6">{selected?.name ?? "Extracted text"}</DialogTitle>
-          <DialogDescription>Extracted text with source references. Formatting and images are not included.</DialogDescription>
+          <DialogDescription>Extracted content with source references. Presentation notes, charts, formatting properties and supported images are labeled separately.</DialogDescription>
         </DialogHeader>
         {selected ? <DocumentText document={selected} /> : null}
       </DialogContent>

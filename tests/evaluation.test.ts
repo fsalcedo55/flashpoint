@@ -6,6 +6,7 @@ import { cases } from "../evals/cases";
 import { loadCase } from "../evals/fixtures";
 import { coverage, deterministicChecks, gradeChecks, validateGrade, type Grade } from "../evals/grading";
 import type { VerifiedSuggestion } from "../src/server/ai/preference-extraction";
+import { MAX_ANALYSIS_CHARACTERS, serializeAnalysisSources } from "../src/lib/analysis";
 
 const simpleCase = { id: "unit", description: "Test case", files: [], patterns: [{ id: "scales", description: "Labeled scales" }], criteria: [{ id: "scope", description: "Preserve scope" }] };
 const grade = (): Grade => ({
@@ -56,12 +57,15 @@ test("all evaluation fixtures use the production extractor and source limits wit
     assert.equal(first.sourceHash, second.sourceHash);
     assert.ok(first.sources.length > 0);
     assert.ok(first.sources.every((source) => source.location.startsWith("Paragraph ")));
-    assert.ok(JSON.stringify(first.sources).length <= 80_000);
+    assert.ok(serializeAnalysisSources(first.sources).length <= MAX_ANALYSIS_CHARACTERS);
   }
 });
 
 test("an indiscriminately positive judge fails calibration", async () => {
-  const output = { suggestions: Array.from({ length: 6 }, (_, index) => ({ ...grade().suggestions[0], id: index + 1 })), criteria: [], patterns: [] };
+  const output = { suggestions: Array.from({ length: 11 }, (_, index) => ({ ...grade().suggestions[0], id: index + 1 })), criteria: [], patterns: [
+    { id: "response-format", suggestionIds: [7], reason: "The rule specifies single-choice answering." },
+    { id: "scoped-routing", suggestionIds: [10], reason: "The rule retains the applicable five-point scale." },
+  ] };
   const model = new MockLanguageModelV4({ doGenerate: {
     content: [{ type: "text", text: JSON.stringify(output) }],
     finishReason: { unified: "stop", raw: undefined },
@@ -70,5 +74,6 @@ test("an indiscriminately positive judge fails calibration", async () => {
   } });
   const calibration = await calibrateJudge(model);
   assert.equal(calibration.passed, false);
-  assert.equal(calibration.checks.filter((check) => !check.passed).length, 3);
+  assert.ok(calibration.checks.some((check) => check.name === "Numeric routing requires scale scope" && !check.passed));
+  assert.ok(calibration.checks.some((check) => check.name === "Code-to-answer mapping cannot be guessed" && !check.passed));
 });
