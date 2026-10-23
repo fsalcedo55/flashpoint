@@ -22,7 +22,8 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div>
+    // Bottom room so the pinned selection bar never covers the last row.
+    <div className="pb-16">
       <PageHeading title="Your documents" />
 
       <input ref={inputRef} type="file" accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"

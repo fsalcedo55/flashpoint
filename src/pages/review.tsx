@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import type { Preference } from "@/lib/preferences";
 import { PageHeading } from "@/components/page-heading";
 import { PreferenceEditor } from "@/components/preference-editor";
+import { PageScrollFade, ScrollFade } from "@/components/scroll-fade";
 import { useWorkspace } from "@/components/workspace-provider";
 import { cn } from "@/lib/utils";
 import { documentPurposeLabels, preferencePurposeSchema, type PreferencePurpose } from "@/lib/document-purpose";
@@ -58,16 +59,14 @@ export default function ReviewPage() {
               <TabsTrigger value="pending" className="px-4">To review <span className="ml-1 text-xs tabular-nums">{pending.length}</span></TabsTrigger>
               <TabsTrigger value="reviewed" className="px-4">Reviewed <span className="ml-1 text-xs tabular-nums">{reviewed.length}</span></TabsTrigger>
             </TabsList>
-            {/* Filtering only means something once suggestions span more than one document type. */}
-            {purposes.length > 1 || purpose !== "all" ? (
-              <NativeSelect aria-label="Document type" value={purpose} onChange={(event) => { setPurpose(event.target.value as PreferencePurpose | "all"); setSelectedId(null); }} className="w-full bg-white sm:w-auto [&_select]:h-10">
-                <NativeSelectOption value="all">All document types ({preferences.length})</NativeSelectOption>
-                {preferencePurposeSchema.options.map((type) => {
-                  const count = preferences.filter((item) => item.purpose === type).length;
-                  return <NativeSelectOption key={type} value={type} disabled={!count}>{documentPurposeLabels[type]} ({count})</NativeSelectOption>;
-                })}
-              </NativeSelect>
-            ) : null}
+            {/* Always shown, so the option to filter by type is discoverable before a second type exists. */}
+            <NativeSelect aria-label="Document type" value={purpose} onChange={(event) => { setPurpose(event.target.value as PreferencePurpose | "all"); setSelectedId(null); }} className="w-full bg-white sm:w-auto [&_select]:h-10">
+              <NativeSelectOption value="all">All document types ({preferences.length})</NativeSelectOption>
+              {preferencePurposeSchema.options.map((type) => {
+                const count = preferences.filter((item) => item.purpose === type).length;
+                return <NativeSelectOption key={type} value={type} disabled={!count}>{documentPurposeLabels[type]} ({count})</NativeSelectOption>;
+              })}
+            </NativeSelect>
           </div>
 
           <TabsContent value={view} className="mt-0">
@@ -101,10 +100,15 @@ export default function ReviewPage() {
                     </div>
                   </button>
                 ))}
+                <PageScrollFade />
               </div>
 
-              <article ref={detailRef} key={selected.id} aria-label="Selected preference" className="min-w-0 scroll-mt-6 rounded-xl border bg-white">
-                <div className="p-5 sm:p-7">
+              {/* Beside the list (md+), the detail stays in view while the list scrolls with the page, so picking an item
+                  far down the list never scrolls its detail away. Long evidence scrolls inside the detail and, at its end,
+                  hands the wheel on to the page. Height fills the viewport less top-6 and <main>'s sm:pb-11, so the
+                  panel never shifts up at the end of the list. */}
+              <article ref={detailRef} key={selected.id} aria-label="Selected preference" className="min-w-0 scroll-mt-6 rounded-xl border bg-white md:sticky md:top-6 md:flex md:h-[calc(100svh-4.25rem)] md:flex-col">
+                <ScrollFade className="p-5 sm:p-7 md:min-h-0 md:flex-1 md:overflow-y-auto md:rounded-t-xl">
                   <div className="mb-5 flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="rounded-md px-2 py-1 text-xs font-medium">{documentPurposeLabels[selected.purpose]}</Badge>
                     <Badge variant="secondary" className="rounded-md px-2 py-1 text-xs font-medium">{selected.category}</Badge>
@@ -138,7 +142,7 @@ export default function ReviewPage() {
                     </div>
                     <p className="mt-3 text-xs leading-5 text-muted-foreground">{selected.evidence.some((item) => item.kind === "image") ? "Image references are checked, but visual observations need your review." : "Quotes are checked against the extracted document text. Review whether they support the suggested preference."}</p>
                   </div>
-                </div>
+                </ScrollFade>
                 {/* Pinned to the viewport bottom so a decision never waits on scrolling past long evidence. */}
                 <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-7">
                   {selected.status === "pending" ? (

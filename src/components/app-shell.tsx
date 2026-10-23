@@ -111,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       {/* One reading column for every page, centered in the space beside the sidebar. */}
-      <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-5 py-8 pb-24 outline-none sm:px-8 sm:py-11 sm:pb-24 lg:px-10">
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-5 py-8 outline-none sm:px-8 sm:py-11 lg:px-10">
         {error ? (
           <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/25 bg-white p-4 text-sm">
             <p className="text-destructive">{error}</p>
