@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AnalysisResult } from "../src/lib/analysis";
 import type { SessionDocument } from "../src/lib/documents";
-import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace } from "../src/lib/workspace";
+import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, swapFixtureWorkspace } from "../src/lib/workspace";
 
 const originalRule = "Use fully labeled five-point satisfaction scales.";
 function pendingWorkspace() {
@@ -20,6 +20,27 @@ function result(id = "preference", rule = originalRule): AnalysisResult {
     suggestedRule: rule, rationale: "The questionnaire uses labeled scales.", status: "pending",
     evidence: [{ documentId: "document", document: "Survey.docx", location: "Paragraph 1", quote: "How satisfied are you?" }] }] };
 }
+
+test("fixture switches preserve real sessions and reject only entry during real work", () => {
+  const running = pendingWorkspace();
+  const processing = { ...running, analyses: [], documents: running.documents.map((item) => ({ ...item, status: "processing" as const })) };
+  const fixture = emptyWorkspace();
+  assert.equal(swapFixtureWorkspace(running, null, fixture), null);
+  assert.equal(swapFixtureWorkspace(processing, null, fixture), null);
+  assert.equal(swapFixtureWorkspace(running, null, null)?.state, running);
+
+  const real = completeAnalysis(running, "analysis", result());
+  const entered = swapFixtureWorkspace(real, null, processing)!;
+  assert.equal(entered.state, processing);
+  assert.equal(entered.realSession, real);
+  const changed = swapFixtureWorkspace(entered.state, entered.realSession, fixture)!;
+  assert.equal(changed.state, fixture);
+  assert.equal(changed.realSession, real);
+  const restored = swapFixtureWorkspace(entered.state, entered.realSession, null)!;
+  assert.equal(restored.state, real);
+  assert.equal(restored.realSession, null);
+  assert.equal(restored.state.preferences.length, 1);
+});
 
 test("confirm, edit, deny and return to review preserve source evidence and the original suggestion", () => {
   const pending = completeAnalysis(pendingWorkspace(), "analysis", result());

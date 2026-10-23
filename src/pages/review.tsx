@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, CheckCheck, FileText, ListChecks, Quote, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,18 @@ export default function ReviewPage() {
   const completionTitle = purpose === "all" ? "Review complete" : "Review complete for this type";
   const purposes = preferencePurposeSchema.options.filter((type) => preferences.some((item) => item.purpose === type));
   const detailRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusAfterDecision = useRef(false);
+
+  useEffect(() => {
+    if (!focusAfterDecision.current) return;
+    focusAfterDecision.current = false;
+    headingRef.current?.focus({ preventScroll: true });
+    const target = detailRef.current ?? headingRef.current;
+    if (target && target.getBoundingClientRect().top < 0) {
+      target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }
+  }, [selected?.id, view]);
 
   // A decision moves the item to the other tab; keep the reviewer's place by selecting its neighbour.
   function decideAndAdvance(id: string, status: Preference["status"]) {
@@ -36,9 +48,8 @@ export default function ReviewPage() {
   }
   function advanceFrom(id: string) {
     const index = visible.findIndex((item) => item.id === id);
+    focusAfterDecision.current = true;
     setSelectedId((visible[index + 1] ?? visible[index - 1])?.id ?? null);
-    const top = detailRef.current?.getBoundingClientRect().top ?? 0;
-    if (top < 0) detailRef.current?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 
   return (
@@ -73,7 +84,7 @@ export default function ReviewPage() {
           {!selected ? (
             <div className="flex min-h-[340px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
               <span className="stagger-item mb-5 flex size-14 items-center justify-center rounded-full bg-secondary text-primary"><CheckCheck className="size-6" aria-hidden="true" /></span>
-              <h2 className="stagger-item text-lg font-semibold">{!scoped.length ? "No preferences for this type" : view === "pending" ? completionTitle : "No reviewed preferences"}</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="stagger-item scroll-mt-6 text-lg font-semibold">{!scoped.length ? "No preferences for this type" : view === "pending" ? completionTitle : "No reviewed preferences"}</h2>
               <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{!scoped.length ? "Choose another document type to see its suggestions." : view === "pending" ? "All suggestions in this view have been reviewed. Confirmed preferences are in your profile." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
               {!scoped.length || (view === "pending" && hasOtherPending) ? (
                 <Button variant="outline" className="stagger-item mt-6 h-10 px-5" onClick={() => { setPurpose("all"); setView("pending"); }}>Review other types <ArrowRight aria-hidden="true" /></Button>
@@ -114,7 +125,7 @@ export default function ReviewPage() {
                     <Badge variant="secondary" className="rounded-md px-2 py-1 text-xs font-medium">{selected.category}</Badge>
                     <span className="text-xs text-muted-foreground">{selected.status === "pending" ? "Suggested preference" : selected.status === "confirmed" ? "Confirmed preference" : "Denied preference"}</span>
                   </div>
-                  <h2 className="max-w-2xl break-words text-xl leading-normal font-medium tracking-[-0.02em]">{selected.rule}</h2>
+                  <h2 ref={headingRef} tabIndex={-1} className="max-w-2xl break-words text-xl leading-normal font-medium tracking-[-0.02em]">{selected.rule}</h2>
                   <p className="mt-4 text-sm leading-7 text-muted-foreground">{selected.rationale}</p>
 
                   <div className="mt-7 border-t pt-6">

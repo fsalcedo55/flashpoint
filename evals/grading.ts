@@ -46,8 +46,8 @@ export function deterministicChecks(testCase: EvalCase, raw: unknown, suggestion
     let classifications: ReturnType<typeof verifyClassifications> = [];
     try { if (parsed.success) classifications = verifyClassifications(parsed.data.classifications, sources); } catch { /* Missing/invalid predictions fail below. */ }
     for (const [name, expected] of Object.entries(testCase.expectedPurposes)) {
-      const id = sources.find((source) => source.document === name)?.documentId;
-      const actual = classifications.find((item) => item.documentId === id)?.purpose;
+      const ids = new Set(sources.filter((source) => source.document === name).map((source) => source.documentId));
+      const actual = ids.size === 1 ? classifications.find((item) => ids.has(item.documentId))?.purpose : undefined;
       checks.push({ name: `Document type: ${name}`, passed: actual === expected, detail: `Expected ${expected}; received ${actual ?? "no valid classification"}.` });
     }
   }

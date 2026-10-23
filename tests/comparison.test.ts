@@ -43,6 +43,24 @@ test("comparison chunking preserves every passage, order and document boundaries
   assert.throws(() => chunks(sources, 10), /exceeds/);
 });
 
+test("filename-based expectations reject ambiguous document names without restricting ordinary inputs", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "flashpoint-private-eval-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "input.json");
+  const sources = [source(1), source(2), { ...source(1, "two"), document: "one.docx" }];
+  const rubric = { id: "duplicate-names", description: "Two different work products with one filename", criteria: [], patterns: [] };
+  const expected = { ...rubric, files: [], expectedPurposes: { "one.docx": "questionnaire" as const } };
+  const classifications = classificationFixture(sources);
+  const checks = deterministicChecks(expected, { classifications }, [], 0, sources);
+  assert.equal(checks.find((check) => check.name === "Document type: one.docx")?.passed, false);
+  await writeFile(path, JSON.stringify({ sources, rubric: expected }));
+  await assert.rejects(loadPrivateCase(path), /Document names must be unique/);
+  await writeFile(path, JSON.stringify({ sources, rubric }));
+  assert.deepEqual((await loadPrivateCase(path)).sources, sources);
+  await writeFile(path, JSON.stringify({ sources: sources.slice(0, 2), rubric: expected }));
+  assert.equal((await loadPrivateCase(path)).sources.length, 2);
+});
+
 test("retrieval includes a competing document even when near duplicates dominate top-k", () => {
   const blocks = [[source(1)], [source(2)], [source(3)], [source(4)], [source(1, "exception")]];
   const result = retrieve(blocks, [[1, 0], [1, 0.01], [1, 0.02], [1, 0.03], [0, 1]], [[1, 0]]);

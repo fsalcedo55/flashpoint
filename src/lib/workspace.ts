@@ -13,6 +13,14 @@ export function emptyWorkspace(): WorkspaceState {
   return { documents: [], preferences: [], analyses: [], selectedIds: [] };
 }
 
+// A fixture may itself depict pending work. Only real work blocks entry; restoring
+// the saved session and switching between fixtures must always remain possible.
+export function swapFixtureWorkspace(state: WorkspaceState, realSession: WorkspaceState | null, next: WorkspaceState | null) {
+  if (!next) return { state: realSession ?? state, realSession: null };
+  if (!realSession && (state.documents.some((item) => item.status === "processing") || state.analyses.some((run) => run.status === "running"))) return null;
+  return { state: next, realSession: realSession ?? state };
+}
+
 const ruleKey = (purpose: Preference["purpose"], rule: string) => `${purpose}:${rule.toLowerCase().replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "")}`;
 
 export function completeAnalysis(state: WorkspaceState, id: string, result: AnalysisResult): WorkspaceState {

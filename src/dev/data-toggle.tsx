@@ -19,7 +19,12 @@ export function DataToggle() {
 
   useEffect(() => {
     if (active === null) return;
-    swapWorkspace(active === "demo" ? null : fixtureWorkspace(active));
+    const swapped = swapWorkspace(active === "demo" ? null : fixtureWorkspace(active));
+    if (!swapped) {
+      // Keep the control in sync when the workspace refuses to leave active real work.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActive("demo");
+    }
     // swapWorkspace is recreated each render; the fixture only changes with the choice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);

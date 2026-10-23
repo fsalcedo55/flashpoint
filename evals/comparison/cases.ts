@@ -75,6 +75,9 @@ export async function loadPrivateCase(path: string): Promise<ComparisonCase> {
     }
     names.set(source.documentId, source.document);
   }
+  if (input.rubric.expectedPurposes && new Set(names.values()).size !== names.size) {
+    throw new Error("Document names must be unique when expectedPurposes is present.");
+  }
   const images = new Set(input.sources.flatMap((source) => source.imageDataUrl ? [source.imageDataUrl] : []));
   if (images.size > 40 || Buffer.byteLength(serializeAnalysisSources(input.sources)) + [...images].reduce((sum, data) => sum + data.length, 0) > MAX_ANALYSIS_REQUEST_BYTES) {
     throw new Error("Private input exceeds the text/image analysis budget.");
