@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Streamdown } from "streamdown";
+import { AnimatePresence, motion } from "motion/react";
+import { enter, exit } from "@/lib/motion";
 import { ArrowRight, Check, ChevronDown, Info, LoaderCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,33 +14,40 @@ import { useWorkspace } from "@/components/workspace-provider";
 import type { AnalysisRun } from "@/lib/analysis";
 import { MAX_ANALYSIS_DOCUMENTS } from "@/lib/analysis";
 
+// Enters and exits through the same edge.
+const barHidden = { opacity: 0, transform: "translateY(12px)", transition: exit } as const;
+
 // Pinned to the bottom of the viewport while documents are selected, so the
 // action is always beside the selection instead of back at the top of the list.
 export function SelectionBar() {
   const { configuration, selectedIds, clearSelection, startAnalysis, isAnalyzing: busy, isUploading } = useWorkspace();
   const available = configuration.data?.configured === true;
-  if (!selectedIds.length) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 px-5 sm:px-8 lg:left-60 lg:px-10">
-      <div role="region" aria-label="Selected documents" className="pointer-events-auto mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-transparent bg-foreground py-2 pr-2 pl-5 sm:rounded-full text-sm text-background shadow-xl ring-1 ring-foreground/10 duration-200 ease-[cubic-bezier(0.2,0,0,1)] animate-in fade-in-0 motion-safe:slide-in-from-bottom-2">
-        <p className="tabular-nums"><span className="font-medium">{selectedIds.length}</span> selected</p>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="text-background/80 hover:bg-background/10 hover:text-background" onClick={clearSelection} disabled={busy}>Clear</Button>
-          {available ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" className="text-background/80 hover:bg-background/10 hover:text-background" aria-label="How documents are analyzed"><Info /></Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-popover text-popover-foreground ring-1 ring-foreground/10">Select up to {MAX_ANALYSIS_DOCUMENTS} documents per analysis. Selected text and filenames are sent through {configuration.data?.provider} to {configuration.data?.model}. Suggestions are kept in this tab for review.</TooltipContent>
-            </Tooltip>
-          ) : null}
-          <Button disabled={isUploading || busy || !available} onClick={() => void startAnalysis(selectedIds)} className="h-9 gap-2 bg-background pr-4 pl-3.5 text-foreground hover:bg-background/90">
-            <IconSwap active={busy} activeIcon={<LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />} inactiveIcon={<Sparkles className="size-3.5" />} />
-            {busy ? "Analyzing…" : "Find preferences"}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <AnimatePresence>
+      {selectedIds.length ? (
+        <motion.div key="selection-bar" initial={barHidden} animate={{ opacity: 1, transform: "translateY(0px)", transition: enter }} exit={barHidden}
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] z-40 px-5 sm:px-8 lg:left-60 lg:px-10">
+          <div role="region" aria-label="Selected documents" className="pointer-events-auto mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-transparent bg-foreground py-2 pr-2 pl-5 sm:rounded-full text-sm text-background shadow-xl ring-1 ring-foreground/10">
+            <p className="tabular-nums"><span className="font-medium">{selectedIds.length}</span> selected</p>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="text-background/80 hover:bg-background/10 hover:text-background" onClick={clearSelection} disabled={busy}>Clear</Button>
+              {available ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" className="text-background/80 hover:bg-background/10 hover:text-background" aria-label="How documents are analyzed"><Info /></Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-popover text-popover-foreground ring-1 ring-foreground/10">Select up to {MAX_ANALYSIS_DOCUMENTS} documents per analysis. Selected text and filenames are sent through {configuration.data?.provider} to {configuration.data?.model}. Suggestions are kept in this tab for review.</TooltipContent>
+                </Tooltip>
+              ) : null}
+              <Button disabled={isUploading || busy || !available} onClick={() => void startAnalysis(selectedIds)} className="h-9 gap-2 bg-background pr-4 pl-3.5 text-foreground hover:bg-background/90">
+                <IconSwap active={busy} activeIcon={<LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />} inactiveIcon={<Sparkles className="size-3.5" />} />
+                {busy ? "Analyzing…" : "Find preferences"}
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -109,11 +118,11 @@ function AnalysisRow({ run, listShownAt }: { run: AnalysisRun; listShownAt: numb
     const timer = setTimeout(() => setNotesOpen(false), 1000);
     return () => clearTimeout(timer);
   }, [running, wasRunning]);
-  const reveal = wasRunning && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4";
+  const reveal = wasRunning && "animate-in fade-in-0 duration-250 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4";
 
   return (
     // scroll-mb clears the selection bar pinned over the bottom of the viewport.
-    <li ref={ref} className={cn("scroll-mb-24 py-3", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
+    <li ref={ref} className={cn("scroll-mb-24 py-3", entered && "animate-in fade-in-0 duration-250 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
       <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
         <div className="flex min-h-9 items-center justify-between gap-3">
           {running ? (

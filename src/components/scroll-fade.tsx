@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 function Fade({ visible, tone }: { visible: boolean; tone: string }) {
-  return <div aria-hidden="true" className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t to-transparent motion-safe:transition-opacity motion-safe:duration-200", tone, visible ? "opacity-100" : "opacity-0")} />;
+  return <div aria-hidden="true" className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t to-transparent motion-safe:transition-opacity motion-safe:duration-200 ease-out", tone, visible ? "opacity-100" : "opacity-0")} />;
 }
 
 // A scroll area that fades its bottom edge while more content sits below,

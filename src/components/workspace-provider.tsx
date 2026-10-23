@@ -205,7 +205,15 @@ function useSessionWorkspace() {
     setError(null); setAnnouncement("Workspace cleared.");
   }
 
-  return { ...state, configuration, addFiles, retryDocument, toggleDocument, clearSelection, startAnalysis,
+  // Dev-only (break-ui): swap a stress-test workspace in at the same boundary real data
+  // uses, and swap the real session back afterwards. Unused in production builds.
+  const realSession = useRef<WorkspaceState | null>(null);
+  function swapWorkspace(next: WorkspaceState | null) {
+    if (next) { realSession.current ??= current.current; update(() => next); }
+    else if (realSession.current) { const real = realSession.current; realSession.current = null; update(() => real); }
+  }
+
+  return { ...state, configuration, swapWorkspace, addFiles, retryDocument, toggleDocument, clearSelection, startAnalysis,
     decide, removePreference, removeDocument, resetWorkspace, error, clearError: () => setError(null), announcement,
     isUploading: state.documents.some((item) => item.status === "processing"),
     isAnalyzing: state.analyses.some((run) => run.status === "running") };

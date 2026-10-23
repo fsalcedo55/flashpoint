@@ -5,7 +5,7 @@ import { cn } from "cn"
 // loading or success indicator). Both icons stay mounted in one grid cell so
 // enter and exit both animate; under reduced motion only the opacity fades.
 const layer =
-  "[grid-area:1/1] flex transition-[opacity,filter,scale] duration-300 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:scale-100 motion-reduce:blur-[0px]"
+  "[grid-area:1/1] flex transition-[opacity,filter,scale] duration-200 ease-out motion-reduce:scale-100 motion-reduce:blur-[0px]"
 const shown = "scale-100 opacity-100 blur-[0px]"
 const hidden = "scale-[0.25] opacity-0 blur-[4px]"
 

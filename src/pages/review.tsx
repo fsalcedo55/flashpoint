@@ -92,7 +92,7 @@ export default function ReviewPage() {
               <div className="hidden space-y-2 md:block" aria-label="Preference suggestions">
                 {visible.map((item) => (
                   <button key={item.id} onClick={() => setSelectedId(item.id)} aria-pressed={item.id === selected.id}
-                    className={cn("flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", item.id === selected.id ? "border-primary bg-accent" : "border-border bg-white hover:border-input")}>
+                    className={cn("flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-[color,background-color,border-color,scale] duration-150 ease-out motion-safe:active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", item.id === selected.id ? "border-primary bg-accent" : "border-border bg-white hover:border-input")}>
                     <div className="min-w-0 flex-1">
                       <span className="text-xs font-medium text-muted-foreground">{purposes.length > 1 && purpose === "all" ? `${documentPurposeLabels[item.purpose]} · ` : ""}{item.category}</span>
                       <span className="mt-2 block text-sm leading-6 font-medium">{item.title}</span>
@@ -144,11 +144,12 @@ export default function ReviewPage() {
                   </div>
                 </ScrollFade>
                 {/* Pinned to the viewport bottom so a decision never waits on scrolling past long evidence. */}
-                <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-7">
+                <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-sm:gap-2 max-sm:px-4 sm:px-7">
                   {selected.status === "pending" ? (
                     <>
-                      <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground" onClick={() => decideAndAdvance(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /> Deny</Button>
-                      <div className="flex gap-2">
+                      {/* Icon-only below sm, so the pinned row stays on one line on small phones. */}
+                      <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground max-sm:w-10 max-sm:px-0" onClick={() => decideAndAdvance(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /><span className="max-sm:sr-only">Deny</span></Button>
+                      <div className="flex flex-wrap justify-end gap-2">
                         <PreferenceEditor preference={selected} onSaved={() => advanceFrom(selected.id)} />
                         <Button className="h-10 gap-2 px-4" onClick={() => decideAndAdvance(selected.id, "confirmed")}><Check className="size-3.5" /> Confirm</Button>
                       </div>

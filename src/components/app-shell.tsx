@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
@@ -8,7 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ResetWorkspace } from "@/components/reset-workspace";
 import { useWorkspace } from "@/components/workspace-provider";
+import { AnimatePresence, motion } from "motion/react";
+import { rise } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+
+// Dev-only test-data switch (break-ui). The import sits in a branch production builds drop.
+const DataToggle = process.env.NODE_ENV === "development"
+  ? dynamic(() => import("@/dev/data-toggle").then((module) => module.DataToggle), { ssr: false })
+  : () => null;
 
 const navigation = [
   { href: "/", label: "Your documents", icon: Files },
@@ -37,7 +45,7 @@ function CountBadge({ count }: { count: number }) {
   // Stays mounted at zero so the common 0 → 1 jump is seen.
   if (count === 0) return null;
   return (
-    <span key={flash ? count : "still"} className={cn("flex size-5 shrink-0 items-center justify-center rounded bg-white text-xs tabular-nums", flash && "animate-[badge-flash_1.2s_ease-out_both]")}>
+    <span key={flash ? count : "still"} className={cn("flex h-5 min-w-5 shrink-0 items-center justify-center rounded bg-white px-1 text-xs tabular-nums", flash && "animate-[badge-flash_1.2s_ease-out_both]")}>
       {count}
     </span>
   );
@@ -55,7 +63,7 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
         const count = href === "/review" ? pending : href === "/profile" ? confirmed : 0;
         return (
           <Link key={href} href={href} onClick={onNavigate} aria-current={active ? "page" : undefined}
-            className={cn("flex min-h-11 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors [&_svg_*]:[vector-effect:non-scaling-stroke] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", active ? "bg-sidebar-accent text-primary" : "text-muted-foreground hover:bg-white/70 hover:text-foreground")}>
+            className={cn("flex min-h-11 items-center gap-2 rounded-lg px-2.5 text-sm font-medium transition-colors [&_svg_*]:[vector-effect:non-scaling-stroke] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", active ? "bg-sidebar-accent text-primary" : "text-muted-foreground hover:bg-white/70 hover:text-foreground active:bg-white/70")}>
             <Icon className="size-[18px] shrink-0" aria-hidden="true" />
             <span className="flex-1 whitespace-nowrap">{label}</span>
             <CountBadge count={count} />
@@ -76,6 +84,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-svh lg:pl-60">
       <Head>
         <title>{title + " · Flashpoint.AI"}</title>
+        {/* viewport-fit=cover makes env(safe-area-inset-*) real; never disable zoom here. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+        {/* Matches the white header, so the browser chrome blends into it. The app is light-only. */}
+        <meta name="theme-color" content="#ffffff" />
+        <meta name="color-scheme" content="light" />
         <meta name="description" content="Review suggested preferences from your documents and manage your confirmed profile." />
         <link rel="icon" href="/brand/flashpoint-mark.png" type="image/png" />
       </Head>
@@ -92,7 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open navigation"><Menu aria-hidden="true" /></Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 bg-sidebar px-4">
+            <SheetContent side="left" className="w-72 bg-sidebar px-4 pl-[max(1rem,env(safe-area-inset-left))]">
               <SheetHeader className="px-3 pt-7">
                 <SheetTitle className="flex items-center gap-4 font-brand text-base font-semibold tracking-[0.01em]">
                   <Image src="/brand/flashpoint-mark.png" alt="" width={182} height={232} className="h-5 w-auto shrink-0" unoptimized />
@@ -112,15 +125,18 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* One reading column for every page, centered in the space beside the sidebar. */}
       <main id="main-content" tabIndex={-1} className="mx-auto max-w-5xl px-5 py-8 outline-none sm:px-8 sm:py-11 lg:px-10">
-        {error ? (
-          <div role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/25 bg-white p-4 text-sm">
-            <p className="text-destructive">{error}</p>
-            <Button variant="outline" size="sm" onClick={clearError}>Dismiss</Button>
-          </div>
-        ) : null}
+        <AnimatePresence>
+          {error ? (
+            <motion.div key="error" {...rise} role="alert" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/25 bg-white p-4 text-sm">
+              <p className="text-destructive">{error}</p>
+              <Button variant="outline" size="sm" onClick={clearError}>Dismiss</Button>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
         {children}
       </main>
       <p role="status" className="sr-only">{announcement}</p>
+      <DataToggle />
     </div>
   );
 }

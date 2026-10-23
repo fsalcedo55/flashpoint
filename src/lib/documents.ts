@@ -42,7 +42,11 @@ export function documentTypeFromName(name: string): DocumentType | undefined {
   return extension === "pdf" || extension === "docx" || extension === "pptx" ? extension : undefined;
 }
 
-export const sectionLabels: Record<DocumentType, string> = { pdf: "pages", docx: "sections", pptx: "slides" };
+const sectionNames: Record<DocumentType, [one: string, other: string]> = { pdf: ["page", "pages"], docx: ["section", "sections"], pptx: ["slide", "slides"] };
+
+export function formatSectionCount(count: number, type: DocumentType) {
+  return `${count.toLocaleString()} ${sectionNames[type][count === 1 ? 0 : 1]}`;
+}
 
 export function formatFileSize(bytes: number) {
   return bytes >= 1_000_000
