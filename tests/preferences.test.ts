@@ -16,7 +16,7 @@ function pendingWorkspace() {
   return state;
 }
 function result(id = "preference", rule = originalRule): AnalysisResult {
-  return { rejectedCount: 1, suggestions: [{ id, category: "Scales", title: "Labeled scales", rule,
+  return { classifications: [{ documentId: "document", purpose: "questionnaire", rationale: "Respondent-ready questions.", evidence: [{ location: "Paragraph 1", quote: "How satisfied are you?" }] }], rejectedCount: 1, suggestions: [{ id, purpose: "questionnaire", category: "Scales", title: "Labeled scales", rule,
     suggestedRule: rule, rationale: "The questionnaire uses labeled scales.", status: "pending",
     evidence: [{ documentId: "document", document: "Survey.docx", location: "Paragraph 1", quote: "How satisfied are you?" }] }] };
 }
@@ -48,6 +48,20 @@ test("later analyses do not replace reviewed preferences or duplicate suggestion
   assert.equal(completed.analyses[1].rejectedCount, 1);
   assert.deepEqual(completed.selectedIds, []);
   assert.equal(completeAnalysis(completed, "next", result("late")), completed);
+});
+
+test("classifications stay in the session and identical rules remain separate across purposes", () => {
+  const first = completeAnalysis(pendingWorkspace(), "analysis", result());
+  assert.equal(first.documents[0].classification?.purpose, "questionnaire");
+  const confirmed = decidePreference(first, "preference", "confirmed");
+  const next = { ...confirmed, analyses: [...confirmed.analyses, { ...confirmed.analyses[0], id: "next", status: "running" as const }] };
+  const differentPurpose = result("plan");
+  differentPurpose.suggestions[0].purpose = "research_plan";
+  const completed = completeAnalysis(next, "next", differentPurpose);
+  assert.equal(completed.preferences.length, 2);
+  assert.equal(completed.preferences[0].status, "confirmed");
+  assert.equal(completed.preferences[0].purpose, "questionnaire");
+  assert.equal(emptyWorkspace().documents.length, 0);
 });
 
 test("a new or cleared session cannot recover an old analysis response", () => {

@@ -1,3 +1,4 @@
+import { classificationFixture, classifiedFixture } from "./analysis-fixtures";
 import { MAX_ANALYSIS_CHARACTERS, prepareAnalysisSources, serializeAnalysisSources, type AnalysisInput, type SourcePassage } from "../src/lib/analysis";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -13,7 +14,7 @@ import { appRouter } from "../src/server/routers/_app";
 const openingQuote = "1. Which brands come to mind?\n2. Which of these brands do you recognize?";
 const scaleQuote = "Very dissatisfied / Dissatisfied / Neutral / Satisfied / Very satisfied";
 const candidate = (sourceId: string, quote = openingQuote, rule = "Begin brand awareness sections with an open-ended question before listing brands.") => ({
-  category: "Question order", title: "Ask unaided questions first", rule,
+  purpose: "questionnaire" as const, category: "Question order", title: "Ask unaided questions first", rule,
   rationale: "This questionnaire asks for unprompted recall first. This may be specific to this document and needs confirmation.",
   evidence: [{ sourceId, quote }],
 });
@@ -26,11 +27,13 @@ function response(output: unknown) {
     warnings: [],
   };
 }
-function fixtureModel(output: unknown) { return new MockLanguageModelV4({ doGenerate: response(output) }); }
+function fixtureModel(output: object, purpose: "questionnaire" | "research_report" = "questionnaire") {
+  return new MockLanguageModelV4({ doGenerate: async ({ prompt }) => response(classifiedFixture(output, prompt, purpose)) });
+}
 
 test("evidence validation rejects invented references and preserves original quote formatting", () => {
   const source: SourcePassage = { sourceId: "d1s1", documentId: randomUUID(), document: "Survey.pdf", location: "Page 1", text: openingQuote };
-  const output = extractionSchema.parse({ suggestions: [candidate("d1s1", openingQuote.replace("\n", " ")), candidate("invented"), candidate("d1s1", "A quote that never appeared anywhere.")] });
+  const output = extractionSchema.pick({ suggestions: true }).parse({ suggestions: [candidate("d1s1", openingQuote.replace("\n", " ")), candidate("invented"), candidate("d1s1", "A quote that never appeared anywhere.")] });
   const verified = verifyEvidence(output, [source]);
   assert.equal(verified.suggestions.length, 1);
   assert.equal(verified.rejectedCount, 2);
@@ -50,10 +53,11 @@ test("the Gateway adapter sends authenticated structured requests and forwards p
     assert.equal(body.providerOptions.openai.store, false);
     assert.equal(body.responseFormat.type, "json");
     assert.ok(body.responseFormat.schema.properties.suggestions);
+    assert.ok(!JSON.stringify(body.responseFormat.schema).includes('"observation"'), "Text-only requests cannot emit image observations.");
     assert.equal(body.maxOutputTokens, 10_000);
     assert.equal(body.reasoning, "medium");
     assert.ok(!body.tools?.length);
-    return new Response(JSON.stringify(response({ suggestions: [candidate("d1s1")] })), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify(response(classifiedFixture({ suggestions: [candidate("d1s1")] }, body.prompt))), { status: 200, headers: { "Content-Type": "application/json" } });
   } });
   const result = await generatePreferences(provider("openai/gpt-5.4-mini"), [{ sourceId: "d1s1", documentId: randomUUID(), document: "Survey.pdf", location: "Page 1", text: openingQuote }]);
   assert.equal(result.output.suggestions.length, 1);
@@ -65,7 +69,7 @@ test("evaluation can lower reasoning without changing subsequent app requests", 
   const efforts: unknown[] = [];
   const model = new MockLanguageModelV4({ doGenerate: async (options) => {
     efforts.push(options.reasoning);
-    return response({ suggestions: [] });
+    return response(classifiedFixture({ suggestions: [] }, options.prompt));
   } });
   const sources: SourcePassage[] = [{ sourceId: "d1s1", documentId: randomUUID(), document: "Survey.pdf", location: "Page 1", text: openingQuote }];
   await generatePreferences(model, sources, "low");
@@ -90,7 +94,7 @@ test("stateless analysis returns only pending suggestions with verified source n
 
 test("requests from separate sessions never reuse or expose another request's results", async () => {
   let calls = 0;
-  const model = new MockLanguageModelV4({ doGenerate: async () => { calls++; return response({ suggestions: [candidate("d1s1")] }); } });
+  const model = new MockLanguageModelV4({ doGenerate: async ({ prompt }) => { calls++; return response(classifiedFixture({ suggestions: [candidate("d1s1")] }, prompt)); } });
   const a = input(); const b = input();
   const [first, second] = await Promise.all([analyzeDocuments(a, { model }), analyzeDocuments(b, { model })]);
   assert.equal(calls, 2);
@@ -141,7 +145,7 @@ test("paragraph-heavy surveys fit without losing text or merging documents with 
   assert.ok(payload.length > 80_000);
   assert.ok(payload.length <= MAX_ANALYSIS_CHARACTERS);
   assert.deepEqual(JSON.parse(payload), documents.map((document, i) => ({
-    document: document.name,
+    documentId: document.id, document: document.name,
     passages: document.sections.slice(1).map((section, j) => ({ sourceId: `d${i + 1}s${j + 2}`, text: section.text })),
   })));
 
@@ -170,7 +174,10 @@ test("preflight applies the limit to the escaped model payload at the exact boun
 test("unverifiable and malformed output fail; an empty suggestion list is valid", async () => {
   await assert.rejects(analyzeDocuments(input(), { model: fixtureModel({ suggestions: [candidate("nonexistent")] }) }), /verifiable/);
   await assert.rejects(analyzeDocuments(input(), { model: fixtureModel({ broken: true }) }), /expected format/);
-  assert.deepEqual(await analyzeDocuments(input(), { model: fixtureModel({ suggestions: [] }) }), { suggestions: [], rejectedCount: 0 });
+  const empty = await analyzeDocuments(input(), { model: fixtureModel({ suggestions: [] }) });
+  assert.deepEqual(empty.suggestions, []);
+  assert.equal(empty.rejectedCount, 0);
+  assert.equal(empty.classifications.length, 1);
 });
 
 test("provider errors are sanitized and a failed request can be retried", async () => {
@@ -195,6 +202,7 @@ test("tRPC validates analysis input and reports missing credentials", async () =
 });
 
 test("the streaming call relays reasoning summaries as separate paragraphs and verifies the same result", async () => {
+  const source = input();
   const chunks = [
     { type: "stream-start", warnings: [] },
     { type: "reasoning-start", id: "r" },
@@ -205,13 +213,13 @@ test("the streaming call relays reasoning summaries as separate paragraphs and v
     { type: "reasoning-delta", id: "r2", delta: "Checking scales." },
     { type: "reasoning-end", id: "r2" },
     { type: "text-start", id: "t" },
-    { type: "text-delta", id: "t", delta: JSON.stringify({ suggestions: [candidate("d1s1"), candidate("invented")] }) },
+    { type: "text-delta", id: "t", delta: JSON.stringify({ classifications: classificationFixture(prepareAnalysisSources(source)), suggestions: [candidate("d1s1"), candidate("invented")] }) },
     { type: "text-end", id: "t" },
     { type: "finish", finishReason: { unified: "stop", raw: undefined }, usage: response({}).usage },
   ];
   const model = new MockLanguageModelV4({ doStream: async () => ({ stream: simulateReadableStream({ chunks: chunks as never }) }) });
   const notes: string[] = [];
-  const result = await analyzeDocuments(input(), { model, onNote: (text) => notes.push(text) });
+  const result = await analyzeDocuments(source, { model, onNote: (text) => notes.push(text) });
   assert.equal(notes.join(""), "Comparing the two questionnaires.\n\nChecking scales.");
   assert.equal(result.suggestions.length, 1);
   assert.equal(result.rejectedCount, 1);
@@ -272,13 +280,14 @@ test("multimodal analysis sends image bytes once and keeps visual observations d
   const sources = prepareAnalysisSources({ documents: [document] });
   assert.ok(!serializeAnalysisSources(sources).includes("base64"));
   assert.match(serializeAnalysisSources(sources), /Slide 2/);
-  const visual = { ...candidate("unused"), category: "Presentation structure", title: "Use flat illustrations",
+  const visual = { ...candidate("unused"), purpose: "research_report", category: "Report structure", title: "Use flat illustrations",
     rule: "For research presentations, use flat illustrations with a limited palette.",
     evidence: [{ sourceId: "d1s2", observation: "The image uses flat blue shapes on a white background." }],
   };
-  const model = fixtureModel({ suggestions: [visual] });
+  const model = fixtureModel({ suggestions: [visual] }, "research_report");
   const result = await analyzeDocuments({ documents: [document] }, { model });
   const message = model.doGenerateCalls[0].prompt.find((item) => item.role === "user")!;
+  assert.ok(JSON.stringify(model.doGenerateCalls[0].responseFormat).includes('"observation"'), "Image requests retain visual observations.");
   assert.equal(message.role, "user");
   if (message.role !== "user") throw new Error("Missing user message");
   const images = message.content.filter((part) => part.type === "file");
@@ -288,7 +297,7 @@ test("multimodal analysis sends image bytes once and keeps visual observations d
   assert.ok(message.content.some((part) => part.type === "text" && part.text.includes("sourceIds: d1s2, d1s3")));
   assert.deepEqual(result.suggestions[0].evidence, [{ documentId: document.id, document: document.name,
     location: "Slide 1 · Image 1", kind: "image", quote: visual.evidence[0].observation }]);
-  const invalid = extractionSchema.parse({ suggestions: [
+  const invalid = extractionSchema.pick({ suggestions: true }).parse({ suggestions: [
     { ...visual, evidence: [{ sourceId: "d1s1", observation: "An image observation cannot cite a text-only source." }] },
     { ...visual, evidence: [{ sourceId: "missing", observation: "An image observation cannot cite a missing source." }] },
     { ...visual, evidence: [{ sourceId: "d1s2", quote: "Embedded image" }] },

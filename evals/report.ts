@@ -40,7 +40,7 @@ export type Report = {
 };
 const cell = (value: string) => value.replaceAll("|", "\\|").replaceAll("\n", " ");
 export function renderReport(report: Report) {
-  const lines = ["# Questionnaire preference evaluation", "",
+  const lines = ["# Document preference evaluation", "",
     `Started: ${report.startedAt}. Model: ${report.model}. Judge: ${report.judgeModel}.`,
     `Prompt: ${report.promptVersion}; rubric: ${report.rubricVersion}; suite: ${report.suiteVersion}.`,
     ...(report.extractionSettings ? [`Extraction settings: ${report.extractionSettings.reasoning} reasoning; ${report.extractionSettings.maxOutputTokens} output tokens maximum; ${report.extractionSettings.timeout / 1000}s timeout; ${report.extractionSettings.maxRetries} retries.`] : []),
@@ -57,6 +57,10 @@ export function renderReport(report: Report) {
     lines.push(`## ${result.caseId} · repeat ${result.repetition}`, "");
     if (result.error) lines.push(`Operational error: ${result.error}`, "");
     lines.push(...result.checks.map((check) => `- ${check.passed ? "PASS" : "FAIL"} — ${cell(check.name)}: ${cell(check.detail)}`), "");
+    for (const classification of result.raw?.classifications ?? []) {
+      const name = result.sources?.find((source) => source.documentId === classification.documentId)?.document ?? classification.documentId;
+      lines.push(`- ${cell(name)}: ${classification.purpose}. ${cell(classification.rationale)}`);
+    }
     if (result.usage) lines.push(`Tokens (input/output): generation ${result.usage.generationInput ?? "unknown"}/${result.usage.generationOutput ?? "unknown"}; judge ${result.usage.judgeInput ?? "unknown"}/${result.usage.judgeOutput ?? "unknown"}.`, "");
     if (result.usage?.generationReasoning != null) lines.push(`Generation reasoning tokens (included in output): ${result.usage.generationReasoning}.`, "");
     for (const [index, suggestion] of (result.suggestions ?? []).entries()) {

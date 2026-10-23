@@ -4,7 +4,7 @@ import { GatewayError } from "@ai-sdk/gateway";
 import { APICallError, NoObjectGeneratedError, type LanguageModel } from "ai";
 import { prepareAnalysisSources, type AnalysisInput, type AnalysisResult } from "../../lib/analysis";
 import { extractionModel } from "../ai/provider";
-import { generatePreferences, streamPreferences, verifyEvidence } from "../ai/preference-extraction";
+import { generatePreferences, streamPreferences, verifyAnalysis } from "../ai/preference-extraction";
 
 function publicAnalysisError(error: unknown) {
   if (error instanceof TRPCError) return error.message;
@@ -44,11 +44,17 @@ export async function analyzeDocuments(input: AnalysisInput, options: { model?: 
     const generated = options.onNote
       ? await streamPreferences(model, sources, options.onNote, { signal: options.signal })
       : await generatePreferences(model, sources);
-    const verified = verifyEvidence(generated.output, sources);
+    let verified: ReturnType<typeof verifyAnalysis>;
+    try {
+      verified = verifyAnalysis(generated.output, sources);
+    } catch {
+      throw new TRPCError({ code: "UNPROCESSABLE_CONTENT", message: "The AI response did not classify every document with valid source references. Try again." });
+    }
     if (generated.output.suggestions.length && !verified.suggestions.length) {
-      throw new TRPCError({ code: "UNPROCESSABLE_CONTENT", message: "None of the suggested preferences had verifiable source evidence. Try again." });
+      throw new TRPCError({ code: "UNPROCESSABLE_CONTENT", message: "None of the suggested preferences had verifiable source evidence matching their document type. Try again." });
     }
     return {
+      classifications: verified.classifications,
       rejectedCount: verified.rejectedCount,
       suggestions: verified.suggestions.map((suggestion) => ({
         ...suggestion, id: randomUUID(), suggestedRule: suggestion.rule, status: "pending",

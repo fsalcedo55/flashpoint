@@ -1,15 +1,37 @@
+import { classificationFixture, classifiedFixture } from "./analysis-fixtures";
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { MockLanguageModelV4 } from "ai/test";
 import type { SourcePassage } from "../src/lib/analysis";
 import { serializeAnalysisSources } from "../src/lib/analysis";
 import { chunks, costEstimate, discover, newCache, reconcile, retrieve, withNeighbors, type Discovery } from "../evals/comparison/strategies";
-import { fictionalCases, longQuestionnaire, validateSources } from "../evals/comparison/cases";
+import { fictionalCases, loadPrivateCase, longQuestionnaire, validateSources } from "../evals/comparison/cases";
+import { deterministicChecks } from "../evals/grading";
 import { runStrategies, type Strategy } from "../evals/comparison/execution";
 
 const source = (n: number, doc = "one"): SourcePassage => ({ sourceId: `${doc}-${n}`, documentId: doc, document: `${doc}.docx`, location: `Paragraph ${n}`, text: `Question ${n}: give a fully labeled opinion rating.` });
 const usage = { inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 20, text: 15, reasoning: 5 } };
 const response = (output: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(output) }], finishReason: { unified: "stop" as const, raw: undefined }, usage, warnings: [] });
+
+test("private evaluations retain document-type and abstention expectations", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "flashpoint-private-eval-"));
+  try {
+    const path = join(directory, "input.json");
+    const sources = [source(1)];
+    await writeFile(path, JSON.stringify({ sources, rubric: { id: "private-types", description: "Classification regression",
+      criteria: [], patterns: [], expectedPurposes: { "one.docx": "research_plan" }, expectEmpty: true } }));
+    const loaded = await loadPrivateCase(path);
+    const checks = deterministicChecks(loaded.rubric, { classifications: classificationFixture(sources) }, [], 0, loaded.sources);
+    assert.equal(checks.find((check) => check.name === "Document type: one.docx")?.passed, false);
+    assert.equal(checks.find((check) => check.name === "Abstention")?.passed, true);
+    assert.deepEqual(loaded.sources, sources);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("comparison chunking preserves every passage, order and document boundaries", () => {
   const sources = [source(1), source(2), source(3, "two")];
@@ -36,7 +58,7 @@ test("neighbor expansion preserves original order, deduplicates and stays within
 });
 
 test("adding a document reuses unchanged analyses; changing text invalidates its cache", async () => {
-  const model = new MockLanguageModelV4({ doGenerate: response({ suggestions: [], exceptions: [] }) });
+  const model = new MockLanguageModelV4({ doGenerate: async ({ prompt }) => response(classifiedFixture({ suggestions: [], exceptions: [] }, prompt)) });
   const cache = newCache();
   const initial = [source(1), source(1, "two")];
   assert.equal((await discover(model, initial, cache)).usage.length, 2);
@@ -50,7 +72,7 @@ test("adding a document reuses unchanged analyses; changing text invalidates its
 
 test("reconciliation cannot cite an original passage that was not in its supplied context", async () => {
   const sources = [source(1), source(2)];
-  const output = { suggestions: [{ title: "Label opinion scales", rule: "Use fully labeled opinion ratings.", rationale: "This passage is evidence from one questionnaire only.", category: "Answer formats",
+  const output = { classifications: classificationFixture([sources[0]]), suggestions: [{ purpose: "questionnaire", title: "Label opinion scales", rule: "Use fully labeled opinion ratings.", rationale: "This passage is evidence from one questionnaire only.", category: "Answer formats",
     evidence: [{ sourceId: sources[1].sourceId, quote: sources[1].text }] }] };
   const model = new MockLanguageModelV4({ doGenerate: response(output) });
   const discovery: Discovery = { mapped: [], context: [sources[0]], usage: [], reused: 0, ms: 0 };
@@ -61,7 +83,7 @@ test("reconciliation cannot cite an original passage that was not in its supplie
 
 test("discovery rejects blank, invented and unknown-source exception citations", async () => {
   const passage = source(1);
-  const model = new MockLanguageModelV4({ doGenerate: response({ suggestions: [], exceptions: [
+  const model = new MockLanguageModelV4({ doGenerate: response({ classifications: classificationFixture([passage]), suggestions: [], exceptions: [
     { sourceId: passage.sourceId, quote: passage.text },
     { sourceId: passage.sourceId, quote: "            " },
     { sourceId: passage.sourceId, quote: "This quotation is invented." },

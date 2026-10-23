@@ -1,6 +1,6 @@
 import mammoth from "mammoth";
 import { zipSync } from "fflate";
-import { documentTypeFromName, MAX_FILE_BYTES, type DocumentSection, type DocumentType } from "../../lib/documents";
+import { documentTypeFromName, formatFileSize, MAX_FILE_BYTES, type DocumentSection, type DocumentType } from "../../lib/documents";
 import { preserveDocxNumbering } from "./docx-numbering";
 import { groupQuestionSections } from "./questionnaire-sections";
 import { DocumentError } from "./document-error";
@@ -14,7 +14,7 @@ const MAX_PAGES = 200;
 
 export function validateUpload(name: string, buffer: Buffer): DocumentType {
   if (!buffer.length || buffer.length > MAX_FILE_BYTES) {
-    throw new DocumentError("Files must be nonempty and no larger than 4 MB.");
+    throw new DocumentError(`Files must be nonempty and no larger than ${formatFileSize(MAX_FILE_BYTES)}.`);
   }
   const extension = documentTypeFromName(name);
   if (extension === "pdf" && buffer.subarray(0, 1024).includes(Buffer.from("%PDF-"))) return "pdf";

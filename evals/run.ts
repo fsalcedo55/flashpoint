@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createGateway } from "ai";
 import { aiConfiguration, extractionModel } from "../src/server/ai/provider";
-import { EXTRACTION_SETTINGS, generatePreferences, PROMPT_VERSION, verifyEvidence } from "../src/server/ai/preference-extraction";
+import { EXTRACTION_SETTINGS, generatePreferences, PROMPT_VERSION, verifyAnalysis } from "../src/server/ai/preference-extraction";
 import { cases, SUITE_VERSION } from "./cases";
 import { loadCase } from "./fixtures";
 import { coverage, deterministicChecks, gradeChecks, gradeSuggestions, RUBRIC_VERSION } from "./grading";
@@ -90,7 +90,7 @@ async function main() {
       const generated = await generatePreferences(model, result.sources!, reasoning);
       result.generationMs = Math.round(performance.now() - start);
       result.raw = generated.output;
-      const verified = verifyEvidence(generated.output, result.sources!);
+      const verified = verifyAnalysis(generated.output, result.sources!);
       result.suggestions = verified.suggestions;
       result.usage = { generationInput: generated.inputTokens ?? null, generationOutput: generated.outputTokens ?? null,
         generationReasoning: generated.reasoningTokens ?? null, judgeInput: null, judgeOutput: null };

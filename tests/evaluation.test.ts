@@ -1,3 +1,4 @@
+import { classificationFixture } from "./analysis-fixtures";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -18,7 +19,7 @@ const grade = (): Grade => ({
   criteria: [{ id: "scope", passed: true, reason: "The rule is scoped to evaluative questions.", suggestionIds: [1] }],
   patterns: [{ id: "scales", suggestionIds: [1], reason: "The rule calls for fully labeled opinion scales." }],
 });
-const suggestion: VerifiedSuggestion = { category: "Answer formats", title: "Label opinion scales", rule: "Use fully labeled five-point opinion scales.", rationale: "The opinion scales have a label for each response.", evidence: [{ documentId: "doc", location: "Paragraph 1", quote: "Strongly disagree; disagree; neutral; agree; strongly agree." }] };
+const suggestion: VerifiedSuggestion = { purpose: "questionnaire", category: "Answer formats", title: "Label opinion scales", rule: "Use fully labeled five-point opinion scales.", rationale: "The opinion scales have a label for each response.", evidence: [{ documentId: "doc", location: "Paragraph 1", quote: "Strongly disagree; disagree; neutral; agree; strongly agree." }] };
 
 test("private cases retain typed PPTX sources and attach deduplicated images to extraction and grading", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "flashpoint-private-eval-"));
@@ -45,7 +46,7 @@ test("private cases retain typed PPTX sources and attach deduplicated images to 
     assert.match(text, /d1s4, d1s5/);
     assert.match(text, /"kind":"notes"/);
     calls++;
-    return { content: [{ type: "text", text: JSON.stringify(calls === 1 ? { suggestions: [] } : grade()) }],
+    return { content: [{ type: "text", text: JSON.stringify(calls === 1 ? { classifications: classificationFixture(sources, "research_report"), suggestions: [] } : grade()) }],
       finishReason: { unified: "stop", raw: undefined }, warnings: [],
       usage: { inputTokens: { total: 10, noCache: 10, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 10, text: 10, reasoning: undefined } } };
   } });

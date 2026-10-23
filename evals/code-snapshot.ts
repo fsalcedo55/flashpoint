@@ -1,6 +1,9 @@
 // Both runners record the complete document reader, including format-specific helpers.
 export const DOCUMENT_EXTRACTION_PATHS = [
   "src/lib/documents.ts",
+  "src/lib/document-purpose.ts",
+  "src/server/ai/document-classification.ts",
+  "evals/classification-cases.ts",
   "src/server/services/document-extraction.ts",
   "src/server/services/document-error.ts",
   "src/server/services/office-archive.ts",

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Preference } from "./preferences";
+import type { DocumentClassification } from "./document-purpose";
 import { documentSectionSchema, imageAssetsSchema, type DocumentSection } from "./documents";
 
 export const MAX_ANALYSIS_DOCUMENTS = 5;
@@ -27,11 +28,11 @@ export type SourcePassage = DocumentSection & { sourceId: string; documentId: st
 // SourcePassage after generation instead of repeating that metadata for every paragraph.
 // Use this same serialization for preflight and the actual model request.
 export function serializeAnalysisSources(sources: SourcePassage[]): string {
-  const documents = new Map<string, { document: string; extractionWarnings?: string[]; passages: { sourceId: string; text: string; kind?: DocumentSection["kind"]; location?: string }[] }>();
+  const documents = new Map<string, { documentId: string; document: string; extractionWarnings?: string[]; passages: { sourceId: string; text: string; kind?: DocumentSection["kind"]; location?: string }[] }>();
   for (const source of sources) {
     let document = documents.get(source.documentId);
     if (!document) {
-      document = { document: source.document, ...(source.extractionWarnings?.length ? { extractionWarnings: source.extractionWarnings } : {}), passages: [] };
+      document = { documentId: source.documentId, document: source.document, ...(source.extractionWarnings?.length ? { extractionWarnings: source.extractionWarnings } : {}), passages: [] };
       documents.set(source.documentId, document);
     }
     document.passages.push({ sourceId: source.sourceId, text: source.text, ...(source.kind ? { kind: source.kind } : {}),
@@ -76,6 +77,7 @@ export function prepareAnalysisSources(input: AnalysisInput): SourcePassage[] {
 }
 
 export type AnalysisResult = {
+  classifications: DocumentClassification[];
   suggestions: Omit<Preference, "analysisId">[];
   rejectedCount: number;
 };

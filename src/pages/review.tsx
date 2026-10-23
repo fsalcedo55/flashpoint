@@ -10,16 +10,21 @@ import { PageHeading } from "@/components/page-heading";
 import { PreferenceEditor } from "@/components/preference-editor";
 import { useWorkspace } from "@/components/workspace-provider";
 import { cn } from "@/lib/utils";
+import { documentPurposeLabels, preferencePurposeSchema, type PreferencePurpose } from "@/lib/document-purpose";
 
 export default function ReviewPage() {
   const { preferences, documents, decide } = useWorkspace();
   const profileHref = "/profile";
   const [view, setView] = useState("pending");
+  const [purpose, setPurpose] = useState<PreferencePurpose | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const pending = preferences.filter((item) => item.status === "pending");
-  const reviewed = preferences.filter((item) => item.status !== "pending");
+  const scoped = preferences.filter((item) => purpose === "all" || item.purpose === purpose);
+  const pending = scoped.filter((item) => item.status === "pending");
+  const reviewed = scoped.filter((item) => item.status !== "pending");
   const visible = view === "pending" ? pending : reviewed;
   const selected = visible.find((item) => item.id === selectedId) ?? visible[0];
+  const hasOtherPending = purpose !== "all" && preferences.some((item) => item.status === "pending" && item.purpose !== purpose);
+  const completionTitle = purpose === "all" ? "Review complete" : "Review complete for this type";
 
   return (
     <>
@@ -36,21 +41,33 @@ export default function ReviewPage() {
         </div>
       ) : (
         <Tabs value={view} onValueChange={setView} className="gap-0">
+          <div className="mb-5 flex flex-wrap items-center gap-3">
+            <Label htmlFor="document-type">Document type</Label>
+            <NativeSelect id="document-type" value={purpose} onChange={(event) => { setPurpose(event.target.value as PreferencePurpose | "all"); setSelectedId(null); }} className="w-full bg-white sm:w-auto [&_select]:h-10">
+              <NativeSelectOption value="all">All document types ({preferences.length})</NativeSelectOption>
+              {preferencePurposeSchema.options.map((type) => {
+                const count = preferences.filter((item) => item.purpose === type).length;
+                return <NativeSelectOption key={type} value={type} disabled={!count}>{documentPurposeLabels[type]} ({count})</NativeSelectOption>;
+              })}
+            </NativeSelect>
+          </div>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
               <TabsList aria-label="Filter preferences">
                 <TabsTrigger value="pending" className="px-4">To review <span className="ml-1 text-xs tabular-nums">{pending.length}</span></TabsTrigger>
                 <TabsTrigger value="reviewed" className="px-4">Reviewed <span className="ml-1 text-xs tabular-nums">{reviewed.length}</span></TabsTrigger>
               </TabsList>
-            <span className="text-xs text-muted-foreground">{reviewed.length} of {preferences.length} reviewed</span>
+            <span className="text-xs text-muted-foreground">{reviewed.length} of {scoped.length} reviewed</span>
           </div>
 
           <TabsContent value={view} className="mt-0">
           {!selected ? (
             <div className="flex min-h-[340px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
               <span className="stagger-item mb-5 flex size-14 items-center justify-center rounded-full bg-secondary text-primary"><CheckCheck className="size-6" aria-hidden="true" /></span>
-              <h2 className="stagger-item text-lg font-semibold">{view === "pending" ? "Review complete" : "No reviewed preferences"}</h2>
-              <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{view === "pending" ? "All suggestions have been reviewed. Confirmed preferences are in your profile for this session." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
-              {view === "pending" ? (
+              <h2 className="stagger-item text-lg font-semibold">{!scoped.length ? "No preferences for this type" : view === "pending" ? completionTitle : "No reviewed preferences"}</h2>
+              <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{!scoped.length ? "Choose another document type to see its suggestions." : view === "pending" ? "All suggestions in this view have been reviewed. Confirmed preferences are in your profile." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
+              {!scoped.length || (view === "pending" && hasOtherPending) ? (
+                <Button variant="outline" className="stagger-item mt-6 h-10 px-5" onClick={() => { setPurpose("all"); setView("pending"); }}>Review other types <ArrowRight aria-hidden="true" /></Button>
+              ) : view === "pending" ? (
                 <Button asChild className="stagger-item mt-6 h-10 px-5"><Link href={profileHref}>Go to your profile <ArrowRight aria-hidden="true" /></Link></Button>
               ) : <Button variant="outline" className="stagger-item mt-6 h-10 px-5" onClick={() => setView("pending")}>Back to suggestions</Button>}
             </div>
@@ -67,7 +84,7 @@ export default function ReviewPage() {
                   <button key={item.id} onClick={() => setSelectedId(item.id)} aria-pressed={item.id === selected.id}
                     className={cn("flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", item.id === selected.id ? "border-primary bg-accent" : "border-border bg-white hover:border-input")}>
                     <div className="min-w-0 flex-1">
-                      <span className="text-xs font-medium text-muted-foreground">{item.category}</span>
+                      <span className="text-xs font-medium text-muted-foreground">{documentPurposeLabels[item.purpose]} · {item.category}</span>
                       <span className="mt-2 block text-sm leading-6 font-medium">{item.title}</span>
                       <span className="mt-2 block text-xs text-muted-foreground">{item.status === "pending" ? item.evidence.length + (item.evidence.length === 1 ? " example" : " examples") : item.status === "confirmed" ? "Confirmed" : "Denied"}</span>
                     </div>
@@ -79,6 +96,7 @@ export default function ReviewPage() {
               <article key={selected.id} aria-label="Selected preference" className="min-w-0 overflow-hidden rounded-xl border bg-white">
                 <div className="p-5 sm:p-7">
                   <div className="mb-5 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="rounded-md px-2 py-1 text-xs font-medium">{documentPurposeLabels[selected.purpose]}</Badge>
                     <Badge variant="secondary" className="rounded-md px-2 py-1 text-xs font-medium">{selected.category}</Badge>
                     <span className="text-xs text-muted-foreground">{selected.status === "pending" ? "Suggested preference" : selected.status === "confirmed" ? "Confirmed preference" : "Denied preference"}</span>
                   </div>

@@ -1,6 +1,8 @@
 import { z } from "zod";
+import type { DocumentClassification } from "./document-purpose";
 
-export const MAX_FILE_BYTES = 4 * 1024 * 1024;
+// Decimal MB, leaving 100 KB for multipart overhead below Vercel's 4.5 MB ceiling.
+export const MAX_FILE_BYTES = 4_400_000;
 export const MAX_FILES = 10;
 export type DocumentType = "pdf" | "docx" | "pptx";
 export const imageDataUrlSchema = z.string().max(350_000)
@@ -23,6 +25,7 @@ export const extractedDocumentSchema = z.object({
 });
 export type ExtractedDocument = z.infer<typeof extractedDocumentSchema>;
 export type SessionDocument = ExtractedDocument & {
+  classification?: DocumentClassification;
   id: string;
   name: string;
   byteSize: number;
@@ -42,7 +45,7 @@ export function documentTypeFromName(name: string): DocumentType | undefined {
 export const sectionLabels: Record<DocumentType, string> = { pdf: "pages", docx: "sections", pptx: "slides" };
 
 export function formatFileSize(bytes: number) {
-  return bytes >= 1024 * 1024
-    ? (bytes / (1024 * 1024)).toFixed(1) + " MB"
-    : Math.max(1, Math.round(bytes / 1024)) + " KB";
+  return bytes >= 1_000_000
+    ? (bytes / 1_000_000).toFixed(1) + " MB"
+    : Math.max(1, Math.round(bytes / 1000)) + " KB";
 }

@@ -1,3 +1,4 @@
+import { classificationFixture } from "./analysis-fixtures";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test, type TestContext } from "node:test";
@@ -67,7 +68,7 @@ test("the analysis procedure streams notes before a verified result through the 
         controller.enqueue(event({ type: "reasoning-start", id: "r" }));
         controller.enqueue(event({ type: "reasoning-delta", id: "r", delta: "Checking the scale." }));
         void finish.promise.then(() => {
-          const output = { suggestions: [{ category: "Answer formats", title: "Negative to positive scales",
+          const output = { classifications: classificationFixture(prepareAnalysisSources(source)), suggestions: [{ purpose: "questionnaire", category: "Answer formats", title: "Negative to positive scales",
             rule: "List satisfaction scale points from negative to positive.",
             rationale: "This document lists negative options first; the choice needs confirmation before reuse.",
             evidence: [{ sourceId: "d1s1", quote }] }] };

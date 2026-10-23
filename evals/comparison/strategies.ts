@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { cosineSimilarity, embedMany, generateText, Output, type EmbeddingModel, type LanguageModel } from "ai";
 import { z } from "zod";
 import { serializeAnalysisSources, type SourcePassage } from "../../src/lib/analysis";
-import { EXTRACTION_SETTINGS, EXTRACTION_SYSTEM, extractionSchema, generatePreferences, verifyEvidence } from "../../src/server/ai/preference-extraction";
+import { EXTRACTION_SETTINGS, EXTRACTION_SYSTEM, extractionSchema, textExtractionSchema, generatePreferences, verifyAnalysis, verifyEvidence } from "../../src/server/ai/preference-extraction";
 
 export const COMPARISON_VERSION = "architecture-comparison-v1";
 export const SETTINGS = { mapCharacters: 30_000, retrievalCharacters: 1_800, concurrency: 2,
@@ -74,7 +74,7 @@ async function batches<T, R>(values: T[], fn: (value: T) => Promise<R>): Promise
   return result;
 }
 
-const mapSchema = extractionSchema.extend({ exceptions: z.array(z.object({
+const mapSchema = textExtractionSchema.extend({ exceptions: z.array(z.object({
   sourceId: z.string().min(1).max(50), quote: z.string().min(12).max(1500),
 })).max(8) });
 const normalize = (text: string) => text.trim().replace(/\s+/g, " ");
@@ -103,7 +103,7 @@ This is a local observation pass over ONE document or one contiguous part of it.
     const usage: Usage = { label: "discovery", ms: Math.round(performance.now() - begin), input: generated.usage.inputTokens ?? null,
       output: generated.usage.outputTokens ?? null, embedding: 0 };
     newUsage.push(usage);
-    const entry = { sources: part, data: { suggestions, exceptions }, usage,
+    const entry = { sources: part, data: { ...generated.output, suggestions, exceptions }, usage,
       rejected: generated.output.suggestions.length - suggestions.length + generated.output.exceptions.length - exceptions.length };
     cache.maps.set(key, entry);
     return entry;
@@ -150,10 +150,10 @@ Reconcile the supplied local observations into at most 12 distinct tentative pre
     prompt: JSON.stringify({ documents: [...new Set(sources.map((source) => source.documentId))].map((id) => ({
       name: sources.find((source) => source.documentId === id)!.document, passages: sources.filter((source) => source.documentId === id).length })),
     observations: discovery.mapped.map((item) => item.data), sourceContext: JSON.parse(serializeAnalysisSources(context)) }),
-    output: Output.object({ schema: extractionSchema }), ...EXTRACTION_SETTINGS,
+    output: Output.object({ schema: textExtractionSchema }), ...EXTRACTION_SETTINGS,
     providerOptions: { openai: { store: false } },
   });
-  return { raw: result.output, ...verifyEvidence(result.output, context), usage: {
+  return { raw: result.output, ...verifyAnalysis(result.output, context), usage: {
     label: "reconciliation", ms: Math.round(performance.now() - start), input: result.usage.inputTokens ?? null,
     output: result.usage.outputTokens ?? null, embedding: 0,
   } satisfies Usage };
@@ -162,7 +162,7 @@ Reconcile the supplied local observations into at most 12 distinct tentative pre
 export async function fullContext(model: LanguageModel, sources: SourcePassage[]) {
   const start = performance.now();
   const result = await generatePreferences(model, sources);
-  return { raw: result.output, ...verifyEvidence(result.output, sources), usage: {
+  return { raw: result.output, ...verifyAnalysis(result.output, sources), usage: {
     label: "full-context", ms: Math.round(performance.now() - start), input: result.inputTokens ?? null,
     output: result.outputTokens ?? null, embedding: 0,
   } satisfies Usage };

@@ -144,6 +144,8 @@ Load fonts through the installed Next.js font facilities. For reproducible local
 | Reset workspace | A muted action at the bottom of the sidebar (and the mobile navigation sheet). Its dialog lists exactly what will be deleted by count (documents, suggestions, confirmed, denied, analyses) |
 | Evidence | Warm inset surface; filename and page/paragraph reference above the exact quotation; distinguish quotation from model explanation |
 | Pending suggestion | Neutral “Suggested” / “To review” label; no implied approval |
+| Document classification | Show “Not analyzed” before analysis and “Analyzing” only on documents in the active run. After analysis, show the detected work-product type as a badge, separate from its file format. “Why this type?” opens the explanation and source quotes in document details. Keep “Other document” and “Uncertain type” neutral |
+| Review by document type | Filter suggestions by Questionnaire, Research report, or Research plan / SOW. Review tabs, counts, and completion messages apply to the current filter; completing one type must not imply that all types are reviewed |
 | Confirmed preference | Explicit “Confirmed” label with check icon; optional restrained success color |
 | Denied preference | Explicit “Denied” label; do not present a normal review choice as a system failure |
 | Processing | Plain progress label and spinner where helpful; preserve stable layout |

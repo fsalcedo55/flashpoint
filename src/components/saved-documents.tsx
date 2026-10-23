@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/components/workspace-provider";
 import { AnalysisNotices, AnalysisRuns, SelectionBar } from "@/components/document-analysis";
 import { MAX_ANALYSIS_DOCUMENTS } from "@/lib/analysis";
+import { documentPurposeLabels } from "@/lib/document-purpose";
 
 const rowAction = cn("shrink-0 text-muted-foreground/60 opacity-0 transition-[opacity,color] duration-150 hover:text-foreground",
   "group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100");
@@ -19,6 +20,14 @@ function DocumentText({ document }: { document: SessionDocument }) {
       <Button asChild variant="outline" size="sm"><a href={document.url} download={document.name}><Download aria-hidden="true" /> Download original</a></Button>
     </div>
     <div className="min-h-0 overflow-y-auto overscroll-contain pr-2">
+      {document.classification ? <section aria-label="Document classification" className="mb-5 rounded-lg border p-4">
+        <h3 className="text-sm font-medium">Detected type: {documentPurposeLabels[document.classification.purpose]}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{document.classification.rationale}</p>
+        {document.classification.evidence.map((citation, index) => <figure key={index} className="mt-3 text-xs leading-5">
+          <figcaption className="text-muted-foreground">{citation.location}</figcaption>
+          <blockquote className="mt-1 border-l-2 pl-3 whitespace-pre-wrap break-words">{citation.quote}</blockquote>
+        </figure>)}
+      </section> : null}
       {document.warnings.map((warning) => <p key={warning} className="mb-5 rounded-lg border bg-secondary p-3 text-xs leading-5">{warning}</p>)}
       <div className="space-y-6">
         {document.sections.map((section) => <section key={section.location} aria-label={section.location}>
@@ -36,7 +45,7 @@ function DocumentText({ document }: { document: SessionDocument }) {
 }
 
 export function SavedDocuments() {
-  const { documents, selectedIds, toggleDocument, retryDocument, removeDocument, isAnalyzing, error, clearError } = useWorkspace();
+  const { documents, analyses, selectedIds, toggleDocument, retryDocument, removeDocument, isAnalyzing, error, clearError } = useWorkspace();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const selected = documents.find((item) => item.id === selectedId);
@@ -53,6 +62,7 @@ export function SavedDocuments() {
       {documents.map((document) => {
         const processing = document.status === "processing";
         const ready = document.status === "ready";
+        const analyzing = analyses.some((run) => run.status === "running" && run.sources.some((source) => source.id === document.id));
         return <li key={document.id} className="group/row py-3">
           <div className="flex items-center gap-3">
             <label className="-my-2 -ml-3 flex size-11 shrink-0 items-center justify-center">
@@ -66,6 +76,15 @@ export function SavedDocuments() {
               {ready ? <button type="button" className="break-words text-left text-sm font-medium underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none" aria-label={`View content of ${document.name}`} onClick={() => setSelectedId(document.id)}>{document.name}</button>
                 : <p className="break-words text-sm font-medium">{document.name}</p>}
               <p className="mt-0.5 text-xs text-muted-foreground">{document.fileType.toUpperCase()} · {formatFileSize(document.byteSize)}{ready ? ` · ${document.sectionCount} ${sectionLabels[document.fileType]}` : ""}</p>
+              {ready ? <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {analyzing ? <Badge variant="secondary" className="gap-1 rounded-md text-xs"><LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Analyzing</Badge>
+                  : document.classification ? <>
+                    <Badge variant="secondary" className={cn("rounded-md text-xs", document.classification.purpose !== "other" && document.classification.purpose !== "uncertain" && "bg-accent text-accent-foreground")}>
+                      <span className="sr-only">Detected type: </span>{documentPurposeLabels[document.classification.purpose]}
+                    </Badge>
+                    <button type="button" className="-my-1 py-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Why this type for ${document.name}?`} onClick={() => setSelectedId(document.id)}>Why this type?</button>
+                  </> : <Badge variant="secondary" className="rounded-md text-xs font-normal text-muted-foreground">Not analyzed</Badge>}
+              </div> : null}
             </div>
             {processing ? <Badge variant="secondary" className="shrink-0 gap-1 rounded-md text-xs"><LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Processing</Badge> : null}
             {document.status === "failed" ? <Button variant="outline" size="sm" className="shrink-0" aria-label={`Retry extraction of ${document.name}`} onClick={() => retryDocument(document.id)}><RefreshCw className="size-3" aria-hidden="true" />Retry</Button> : null}

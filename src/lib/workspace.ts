@@ -13,21 +13,25 @@ export function emptyWorkspace(): WorkspaceState {
   return { documents: [], preferences: [], analyses: [], selectedIds: [] };
 }
 
-const ruleKey = (rule: string) => rule.toLowerCase().replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "");
+const ruleKey = (purpose: Preference["purpose"], rule: string) => `${purpose}:${rule.toLowerCase().replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "")}`;
 
 export function completeAnalysis(state: WorkspaceState, id: string, result: AnalysisResult): WorkspaceState {
   // A reset or removed run must never be repopulated by a late response.
   if (!state.analyses.some((run) => run.id === id && run.status === "running")) return state;
-  const known = new Set(state.preferences.map((preference) => ruleKey(preference.suggestedRule)));
+  const known = new Set(state.preferences.map((preference) => ruleKey(preference.purpose, preference.suggestedRule)));
   const added: Preference[] = [];
   for (const suggestion of result.suggestions) {
-    const key = ruleKey(suggestion.rule);
+    const key = ruleKey(suggestion.purpose, suggestion.rule);
     if (known.has(key)) continue;
     known.add(key);
     added.push({ ...suggestion, analysisId: id, status: "pending" });
   }
   return {
     ...state,
+    documents: state.documents.map((document) => {
+      const classification = result.classifications.find((item) => item.documentId === document.id);
+      return classification ? { ...document, classification } : document;
+    }),
     preferences: [...state.preferences, ...added],
     selectedIds: [],
     analyses: state.analyses.map((run) => run.id === id
