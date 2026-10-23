@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, FileText, LoaderCircle, RefreshCw, Trash2 } from "lucide-react";
+import { Download, LoaderCircle, RefreshCw, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,7 +11,7 @@ import { MAX_ANALYSIS_DOCUMENTS } from "@/lib/analysis";
 import { documentPurposeLabels } from "@/lib/document-purpose";
 
 const rowAction = cn("shrink-0 text-muted-foreground/60 opacity-0 transition-[opacity,color] duration-150 hover:text-foreground",
-  "group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100");
+  "group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 disabled:invisible");
 
 function DocumentText({ document }: { document: SessionDocument }) {
   return <>
@@ -71,27 +71,28 @@ export function SavedDocuments() {
                 disabled={!ready || isAnalyzing || (!selectedIds.includes(document.id) && selectedIds.length >= MAX_ANALYSIS_DOCUMENTS)}
                 checked={selectedIds.includes(document.id)} onChange={(event) => toggleDocument(document.id, event.target.checked)} />
             </label>
-            <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               {ready ? <button type="button" className="break-words text-left text-sm font-medium underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none" aria-label={`View content of ${document.name}`} onClick={() => setSelectedId(document.id)}>{document.name}</button>
                 : <p className="break-words text-sm font-medium">{document.name}</p>}
-              <p className="mt-0.5 text-xs text-muted-foreground">{document.fileType.toUpperCase()} · {formatFileSize(document.byteSize)}{ready ? ` · ${document.sectionCount} ${sectionLabels[document.fileType]}` : ""}</p>
-              {ready ? <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                {analyzing ? <Badge variant="secondary" className="gap-1 rounded-md text-xs"><LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Analyzing</Badge>
-                  : document.classification ? <>
-                    <Badge variant="secondary" className={cn("rounded-md text-xs", document.classification.purpose !== "other" && document.classification.purpose !== "uncertain" && "bg-accent text-accent-foreground")}>
-                      <span className="sr-only">Detected type: </span>{documentPurposeLabels[document.classification.purpose]}
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs text-muted-foreground">{document.fileType.toUpperCase()} · {formatFileSize(document.byteSize)}{ready ? ` · ${document.sectionCount} ${sectionLabels[document.fileType]}` : ""}</span>
+                {!ready ? null : analyzing ? <Badge variant="secondary" className="gap-1 rounded-md text-xs"><LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Analyzing</Badge>
+                  : document.classification ? (
+                    // The type itself opens its explanation; a separate link on every row was noise.
+                    <Badge asChild variant="secondary" className={cn("cursor-pointer rounded-md text-xs underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", document.classification.purpose !== "other" && document.classification.purpose !== "uncertain" && "bg-accent text-accent-foreground")}>
+                      <button type="button" title="Why this type?" aria-label={`Detected type: ${documentPurposeLabels[document.classification.purpose]}. Why this type for ${document.name}?`} onClick={() => setSelectedId(document.id)}>
+                        {documentPurposeLabels[document.classification.purpose]}
+                      </button>
                     </Badge>
-                    <button type="button" className="-my-1 py-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`Why this type for ${document.name}?`} onClick={() => setSelectedId(document.id)}>Why this type?</button>
-                  </> : <Badge variant="secondary" className="rounded-md text-xs font-normal text-muted-foreground">Not analyzed</Badge>}
-              </div> : null}
+                  ) : <Badge variant="secondary" className="rounded-md text-xs font-normal text-muted-foreground">Not analyzed</Badge>}
+              </div>
             </div>
             {processing ? <Badge variant="secondary" className="shrink-0 gap-1 rounded-md text-xs"><LoaderCircle className="size-3 animate-spin motion-reduce:animate-none" aria-hidden="true" />Processing</Badge> : null}
             {document.status === "failed" ? <Button variant="outline" size="sm" className="shrink-0" aria-label={`Retry extraction of ${document.name}`} onClick={() => retryDocument(document.id)}><RefreshCw className="size-3" aria-hidden="true" />Retry</Button> : null}
             <Button asChild variant="ghost" size="icon-sm" className={rowAction}><a href={document.url} download={document.name} aria-label={`Download original ${document.name}`}><Download aria-hidden="true" /></a></Button>
             <Button variant="ghost" size="icon-sm" className={cn(rowAction, "-mr-2 hover:text-destructive")} aria-label={`Delete ${document.name}`} disabled={processing || isAnalyzing} onClick={() => { clearError(); setDeletingId(document.id); }}><Trash2 aria-hidden="true" /></Button>
           </div>
-          {document.error ? <p role="alert" className="mt-2 pl-10 text-xs leading-5 text-destructive">{document.error}</p> : null}
+          {document.error ? <p role="alert" className="mt-2 pl-11 text-xs leading-5 text-destructive">{document.error}</p> : null}
         </li>;
       })}
     </ul>

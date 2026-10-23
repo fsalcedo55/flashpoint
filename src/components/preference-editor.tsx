@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useWorkspace } from "@/components/workspace-provider";
 import type { Preference } from "@/lib/preferences";
 
-export function PreferenceEditor({ preference }: { preference: Preference }) {
+export function PreferenceEditor({ preference, onSaved }: { preference: Preference; onSaved?: () => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(preference.rule);
   const { decide, error } = useWorkspace();
@@ -18,7 +18,7 @@ export function PreferenceEditor({ preference }: { preference: Preference }) {
     if (draft.trim().length < 10 || draft.trim().length > 500) return;
     setFailed(false);
     const saved = decide(preference.id, "confirmed", draft.trim());
-    if (saved) setOpen(false);
+    if (saved) { setOpen(false); onSaved?.(); }
     else setFailed(true);
   }
 

@@ -112,7 +112,8 @@ function AnalysisRow({ run, listShownAt }: { run: AnalysisRun; listShownAt: numb
   const reveal = wasRunning && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-1 motion-safe:blur-in-4";
 
   return (
-    <li ref={ref} className={cn("py-3", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
+    // scroll-mb clears the selection bar pinned over the bottom of the viewport.
+    <li ref={ref} className={cn("scroll-mb-24 py-3", entered && "animate-in fade-in-0 duration-300 ease-out motion-safe:slide-in-from-bottom-3 motion-safe:blur-in-4")}>
       <Collapsible open={notesOpen} onOpenChange={setNotesOpen}>
         <div className="flex min-h-9 items-center justify-between gap-3">
           {running ? (
@@ -176,7 +177,7 @@ export function AnalysisRuns() {
   if (!analyses.length) return null;
   return (
     <section aria-label="Recent analyses" className="mt-8">
-      <h3 className="mb-2 text-sm font-semibold">Recent analyses</h3>
+      <h2 className="mb-3 text-lg font-semibold">Recent analyses</h2>
       <RunList runs={analyses} />
     </section>
   );
