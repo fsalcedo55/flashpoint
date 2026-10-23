@@ -30,7 +30,9 @@ export function DataToggle() {
   }, [active]);
 
   useEffect(() => {
-    if (active === null || fromQuery(router.query.data) === active) return;
+    if (active === null) return;
+    const canonicalData = active === "demo" ? undefined : active;
+    if (router.query.data === canonicalData) return;
     const query = Object.fromEntries(Object.entries(router.query).filter(([key]) => key !== "data"));
     void router.replace({ pathname: router.pathname, query: active === "demo" ? query : { ...query, data: active } }, undefined, { shallow: true, scroll: false });
   }, [active, router]);
