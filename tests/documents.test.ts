@@ -3,7 +3,7 @@ import fs, { readdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
-import { strToU8, zipSync } from "fflate";
+import { strToU8, unzipSync, zipSync } from "fflate";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { imageDataUrlSchema, MAX_FILE_BYTES } from "../src/lib/documents";
 import { DocumentError, extractDocument, validateUpload } from "../src/server/services/document-extraction";
@@ -93,6 +93,24 @@ test("upload API enforces bounds, logs unexpected failures and removes temporary
     const extracted = await presentation.json();
     assert.equal(extracted.fileType, "pptx");
     assert.deepEqual(extracted.sections, [{ location: "Slide 1", text: "Report findings" }]);
+
+    // Embedded fonts can dominate a Word file without adding analysis content.
+    // Exercise the full upload at the file limit, including multipart overhead.
+    const parts = unzipSync(docxFixture(["Research scope and deliverables."]));
+    parts["word/fonts/font1.odttf"] = new Uint8Array();
+    const overhead = zipSync(parts, { level: 0 }).length;
+    parts["word/fonts/font1.odttf"] = new Uint8Array(MAX_FILE_BYTES - overhead);
+    const fontHeavyDocx = zipSync(parts, { level: 0 });
+    assert.equal(fontHeavyDocx.length, MAX_FILE_BYTES);
+    assert.ok(fontHeavyDocx.length > 4 * 1024 * 1024);
+    const body = new FormData();
+    body.append("file", new Blob([fontHeavyDocx]), "é".repeat(250) + ".docx");
+    const request = new Request(`http://127.0.0.1:${address.port}`, { method: "POST", body });
+    assert.ok((await request.clone().arrayBuffer()).byteLength < 4_500_000);
+    const largeResponse = await fetch(request);
+    assert.equal(largeResponse.status, 200);
+    assert.deepEqual((await largeResponse.json()).sections, [{ location: "Paragraph 1", text: "Research scope and deliverables." }]);
+
     for (const buffers of [[], [pdf, pdf], [Buffer.alloc(MAX_FILE_BYTES + 1)], [Buffer.alloc(0)]]) {
       const rejected = await send(buffers); assert.equal(rejected.status, 400); await rejected.text();
     }

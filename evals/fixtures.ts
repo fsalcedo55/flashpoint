@@ -9,6 +9,7 @@ export async function loadCase(testCase: EvalCase) {
   const files = await Promise.all(testCase.files.map(async (name) => ({ name,
     buffer: await readFile(new URL(`../tests/fixtures/questionnaires/${name}`, import.meta.url)) })));
   if (testCase.paragraphs) files.push({ name: `${testCase.id}.docx`, buffer: docxFixture(testCase.paragraphs) });
+  for (const document of testCase.inlineDocuments ?? []) files.push({ name: document.name, buffer: docxFixture(document.paragraphs) });
   const documents = await Promise.all(files.map(async ({ name, buffer }, index) => ({
     id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, name,
     ...await extractDocument(buffer, validateUpload(name, buffer)),

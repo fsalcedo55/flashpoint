@@ -5,11 +5,12 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { createGateway } from "ai";
 import { aiConfiguration, extractionModel } from "../src/server/ai/provider";
-import { EXTRACTION_SETTINGS, generatePreferences, PROMPT_VERSION, verifyEvidence } from "../src/server/ai/preference-extraction";
+import { EXTRACTION_SETTINGS, PROMPT_VERSION } from "../src/server/ai/preference-extraction";
 import { cases, SUITE_VERSION } from "./cases";
 import { loadCase } from "./fixtures";
-import { coverage, deterministicChecks, gradeChecks, gradeSuggestions, RUBRIC_VERSION } from "./grading";
-import { renderReport, type CaseResult, type Report } from "./report";
+import { RUBRIC_VERSION } from "./grading";
+import { renderReport, type Report } from "./report";
+import { evaluateCase } from "./evaluate-case";
 import { calibrateJudge } from "./calibration";
 import { loadPrivateCase } from "./comparison/cases";
 import { MAX_ANALYSIS_CHARACTERS, serializeAnalysisSources } from "../src/lib/analysis";
@@ -42,7 +43,7 @@ async function main() {
   const judgeModel = process.env.AI_EVAL_JUDGE_MODEL?.trim() || "openai/gpt-6.1-sol";
   const model = extractionModel();
   const judge = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY?.trim() })(judgeModel);
-  const paths = [...DOCUMENT_EXTRACTION_PATHS, "evals/code-snapshot.ts", "src/server/ai/preference-extraction.ts", "src/server/ai/source-prompt.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/lib/analysis.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "evals/comparison/cases.ts", "evals/comparison/strategies.ts", "tests/document-fixtures.ts"];
+  const paths = [...DOCUMENT_EXTRACTION_PATHS, "evals/code-snapshot.ts", "src/server/ai/preference-extraction.ts", "src/server/ai/source-prompt.ts", "src/server/services/analyses.ts", "src/server/ai/provider.ts", "src/lib/analysis.ts", "evals/cases.ts", "evals/fixtures.ts", "evals/grading.ts", "evals/calibration.ts", "evals/run.ts", "evals/evaluate-case.ts", "evals/comparison/cases.ts", "evals/comparison/strategies.ts", "tests/document-fixtures.ts"];
   const hash = createHash("sha256");
   const snapshot = await Promise.all(paths.map(async (path) => [path, await readFile(path, "utf8")]));
   for (const [path, text] of snapshot) hash.update(path).update(text);
@@ -79,38 +80,11 @@ async function main() {
     return;
   }
   for (const testCase of selected) for (let repetition = 1; repetition <= repeats; repetition++) {
-    const result: CaseResult = { caseId: testCase.id, repetition, status: "error", checks: [] };
-    let stage = "fixture extraction";
-    try {
-      Object.assign(result, privateCase ? { sources: privateCase.sources,
-        sourceHash: createHash("sha256").update(JSON.stringify(privateCase.sources)).digest("hex") } : await loadCase(testCase));
-      stage = "generation";
-      console.log(`[${testCase.id} ${repetition}/${repeats}] generating…`);
-      const start = performance.now();
-      const generated = await generatePreferences(model, result.sources!, reasoning);
-      result.generationMs = Math.round(performance.now() - start);
-      result.raw = generated.output;
-      const verified = verifyEvidence(generated.output, result.sources!);
-      result.suggestions = verified.suggestions;
-      result.usage = { generationInput: generated.inputTokens ?? null, generationOutput: generated.outputTokens ?? null,
-        generationReasoning: generated.reasoningTokens ?? null, judgeInput: null, judgeOutput: null };
-      result.checks = deterministicChecks(testCase, result.raw, result.suggestions, verified.rejectedCount, result.sources!);
-      stage = "semantic grading";
-      console.log(`[${testCase.id} ${repetition}/${repeats}] grading ${result.suggestions.length} suggestions…`);
-      const judgeStart = performance.now();
-      const graded = await gradeSuggestions(judge, testCase, result.sources!, result.suggestions);
-      result.judgeMs = Math.round(performance.now() - judgeStart);
-      result.grade = graded.grade;
-      result.usage.judgeInput = graded.inputTokens;
-      result.usage.judgeOutput = graded.outputTokens;
-      result.coverage = coverage(graded.grade, testCase.patterns);
-      result.checks.push(...gradeChecks(graded.grade));
-      result.status = result.checks.every((check) => check.passed) ? "passed" : "quality-failure";
-    } catch (error) {
-      // SDK errors may include request bodies or credentials. Never serialize the raw error.
-      const name = error instanceof Error && /^[A-Za-z_]+Error$/.test(error.name) ? error.name : "Error";
-      result.error = `${stage} failed (${name}). Check model access/credits and rerun this case. No grade was assumed.`;
-    }
+    console.log(`[${testCase.id} ${repetition}/${repeats}] evaluating…`);
+    const result = await evaluateCase(testCase, repetition, { model, judge, reasoning,
+      loadSources: async () => privateCase ? { sources: privateCase.sources,
+        sourceHash: createHash("sha256").update(JSON.stringify(privateCase.sources)).digest("hex") } : loadCase(testCase),
+    });
     report.results.push(result);
     await save();
     console.log(`[${testCase.id} ${repetition}/${repeats}] ${result.status}${result.coverage?.total ? `; coverage ${result.coverage.found}/${result.coverage.total}` : ""}`);

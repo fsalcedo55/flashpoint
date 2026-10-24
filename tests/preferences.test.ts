@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AnalysisResult } from "../src/lib/analysis";
 import type { SessionDocument } from "../src/lib/documents";
-import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace } from "../src/lib/workspace";
+import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, swapFixtureWorkspace } from "../src/lib/workspace";
 
 const originalRule = "Use fully labeled five-point satisfaction scales.";
 function pendingWorkspace() {
@@ -16,10 +16,31 @@ function pendingWorkspace() {
   return state;
 }
 function result(id = "preference", rule = originalRule): AnalysisResult {
-  return { rejectedCount: 1, suggestions: [{ id, category: "Scales", title: "Labeled scales", rule,
+  return { classifications: [{ documentId: "document", purpose: "questionnaire", rationale: "Respondent-ready questions.", evidence: [{ location: "Paragraph 1", quote: "How satisfied are you?" }] }], rejectedCount: 1, suggestions: [{ id, purpose: "questionnaire", category: "Scales", title: "Labeled scales", rule,
     suggestedRule: rule, rationale: "The questionnaire uses labeled scales.", status: "pending",
     evidence: [{ documentId: "document", document: "Survey.docx", location: "Paragraph 1", quote: "How satisfied are you?" }] }] };
 }
+
+test("fixture switches preserve real sessions and reject only entry during real work", () => {
+  const running = pendingWorkspace();
+  const processing = { ...running, analyses: [], documents: running.documents.map((item) => ({ ...item, status: "processing" as const })) };
+  const fixture = emptyWorkspace();
+  assert.equal(swapFixtureWorkspace(running, null, fixture), null);
+  assert.equal(swapFixtureWorkspace(processing, null, fixture), null);
+  assert.equal(swapFixtureWorkspace(running, null, null)?.state, running);
+
+  const real = completeAnalysis(running, "analysis", result());
+  const entered = swapFixtureWorkspace(real, null, processing)!;
+  assert.equal(entered.state, processing);
+  assert.equal(entered.realSession, real);
+  const changed = swapFixtureWorkspace(entered.state, entered.realSession, fixture)!;
+  assert.equal(changed.state, fixture);
+  assert.equal(changed.realSession, real);
+  const restored = swapFixtureWorkspace(entered.state, entered.realSession, null)!;
+  assert.equal(restored.state, real);
+  assert.equal(restored.realSession, null);
+  assert.equal(restored.state.preferences.length, 1);
+});
 
 test("confirm, edit, deny and return to review preserve source evidence and the original suggestion", () => {
   const pending = completeAnalysis(pendingWorkspace(), "analysis", result());
@@ -48,6 +69,20 @@ test("later analyses do not replace reviewed preferences or duplicate suggestion
   assert.equal(completed.analyses[1].rejectedCount, 1);
   assert.deepEqual(completed.selectedIds, []);
   assert.equal(completeAnalysis(completed, "next", result("late")), completed);
+});
+
+test("classifications stay in the session and identical rules remain separate across purposes", () => {
+  const first = completeAnalysis(pendingWorkspace(), "analysis", result());
+  assert.equal(first.documents[0].classification?.purpose, "questionnaire");
+  const confirmed = decidePreference(first, "preference", "confirmed");
+  const next = { ...confirmed, analyses: [...confirmed.analyses, { ...confirmed.analyses[0], id: "next", status: "running" as const }] };
+  const differentPurpose = result("plan");
+  differentPurpose.suggestions[0].purpose = "research_plan";
+  const completed = completeAnalysis(next, "next", differentPurpose);
+  assert.equal(completed.preferences.length, 2);
+  assert.equal(completed.preferences[0].status, "confirmed");
+  assert.equal(completed.preferences[0].purpose, "questionnaire");
+  assert.equal(emptyWorkspace().documents.length, 0);
 });
 
 test("a new or cleared session cannot recover an old analysis response", () => {

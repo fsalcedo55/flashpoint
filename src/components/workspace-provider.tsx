@@ -4,7 +4,7 @@ import { useTRPC, useTRPCClient } from "@/lib/trpc";
 import { ANALYSIS_REQUEST_TIMEOUT_MS, MAX_ANALYSIS_DOCUMENTS, prepareAnalysisSources, type AnalysisResult } from "@/lib/analysis";
 import { documentTypeFromName, extractedDocumentSchema, formatFileSize, MAX_FILE_BYTES, MAX_FILES, type SessionDocument } from "@/lib/documents";
 import type { PreferenceStatus } from "@/lib/preferences";
-import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, type WorkspaceState } from "@/lib/workspace";
+import { completeAnalysis, decidePreference, deleteDocument, deletePreference, emptyWorkspace, swapFixtureWorkspace, type WorkspaceState } from "@/lib/workspace";
 import type { AnalysisRun } from "@/lib/analysis";
 
 function useSessionWorkspace() {
@@ -205,7 +205,18 @@ function useSessionWorkspace() {
     setError(null); setAnnouncement("Workspace cleared.");
   }
 
-  return { ...state, configuration, addFiles, retryDocument, toggleDocument, clearSelection, startAnalysis,
+  // Dev-only (break-ui): swap a stress-test workspace in at the same boundary real data
+  // uses, and swap the real session back afterwards. Unused in production builds.
+  const realSession = useRef<WorkspaceState | null>(null);
+  function swapWorkspace(next: WorkspaceState | null) {
+    const swapped = swapFixtureWorkspace(current.current, realSession.current, next);
+    if (!swapped) return false;
+    realSession.current = swapped.realSession;
+    update(() => swapped.state);
+    return true;
+  }
+
+  return { ...state, configuration, swapWorkspace, addFiles, retryDocument, toggleDocument, clearSelection, startAnalysis,
     decide, removePreference, removeDocument, resetWorkspace, error, clearError: () => setError(null), announcement,
     isUploading: state.documents.some((item) => item.status === "processing"),
     isAnalyzing: state.analyses.some((run) => run.status === "running") };

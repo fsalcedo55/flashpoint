@@ -17,7 +17,7 @@ const texts = [
   "Q23. [If Q20=8] Why did you select this option? [Open ended]",
 ];
 const sources: SourcePassage[] = texts.map((text, i) => ({ sourceId: `d1s${i + 1}`, documentId: "calibration", document: "Calibration.docx", location: `Paragraph ${i + 1}`, text }));
-const item = (rule: string, indices: number[], rationale = "This is a tentative observation from this document, which may not generalize."): VerifiedSuggestion => ({ category: "Survey structure", title: "Calibration candidate", rule, rationale,
+const item = (rule: string, indices: number[], rationale = "This is a tentative observation from this document, which may not generalize."): VerifiedSuggestion => ({ purpose: "questionnaire", category: "Survey structure", title: "Calibration candidate", rule, rationale,
   evidence: indices.map((i) => ({ documentId: sources[i].documentId, location: sources[i].location, quote: sources[i].text })) });
 const suggestions = [
   item("For five-point satisfaction items, label every response option.", [0]),

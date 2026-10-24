@@ -6,6 +6,7 @@ import { extractDocument } from "../../src/server/services/document-extraction";
 import { docxFixture } from "../../tests/document-fixtures";
 import { MAX_ANALYSIS_REQUEST_BYTES, serializeAnalysisSources, type SourcePassage } from "../../src/lib/analysis";
 import { documentSectionSchema, imageDataUrlSchema } from "../../src/lib/documents";
+import { documentPurposeSchema } from "../../src/lib/document-purpose";
 import { chunks, SETTINGS } from "./strategies";
 
 export type ComparisonCase = { rubric: EvalCase; sources: SourcePassage[]; reusePrevious: boolean };
@@ -58,7 +59,9 @@ const inputSchema = z.object({ sources: z.array(documentSectionSchema.extend({
   sourceId: z.string(), documentId: z.string(), document: z.string(), text: z.string().min(1),
   imageDataUrl: imageDataUrlSchema.optional(), extractionWarnings: z.array(z.string().max(500)).max(20).optional(),
 }).refine((source) => (source.kind === "image") === Boolean(source.imageDataUrl), "Image sources must include their image data; other sources cannot attach images.")),
-  rubric: z.object({ id: z.string(), description: z.string(), criteria: z.array(criterion), patterns: z.array(criterion) }),
+  rubric: z.object({ id: z.string(), description: z.string(), criteria: z.array(criterion), patterns: z.array(criterion),
+    expectedPurposes: z.record(z.string(), documentPurposeSchema).optional(), expectEmpty: z.boolean().optional(),
+  }),
 });
 
 // Local, already-extracted inputs and their predeclared rubric can be supplied
@@ -71,6 +74,9 @@ export async function loadPrivateCase(path: string): Promise<ComparisonCase> {
       throw new Error("Each document ID must refer to one document name.");
     }
     names.set(source.documentId, source.document);
+  }
+  if (input.rubric.expectedPurposes && new Set(names.values()).size !== names.size) {
+    throw new Error("Document names must be unique when expectedPurposes is present.");
   }
   const images = new Set(input.sources.flatMap((source) => source.imageDataUrl ? [source.imageDataUrl] : []));
   if (images.size > 40 || Buffer.byteLength(serializeAnalysisSources(input.sources)) + [...images].reduce((sum, data) => sum + data.length, 0) > MAX_ANALYSIS_REQUEST_BYTES) {

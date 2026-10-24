@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Check, PencilLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -7,27 +7,31 @@ import { Textarea } from "@/components/ui/textarea";
 import { useWorkspace } from "@/components/workspace-provider";
 import type { Preference } from "@/lib/preferences";
 
-export function PreferenceEditor({ preference }: { preference: Preference }) {
+export function PreferenceEditor({ preference, onSaved }: { preference: Preference; onSaved?: () => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(preference.rule);
   const { decide, error } = useWorkspace();
   const [failed, setFailed] = useState(false);
+  const savedAndAdvanced = useRef(false);
 
   function save(event: FormEvent) {
     event.preventDefault();
     if (draft.trim().length < 10 || draft.trim().length > 500) return;
     setFailed(false);
     const saved = decide(preference.id, "confirmed", draft.trim());
-    if (saved) setOpen(false);
+    if (saved) { savedAndAdvanced.current = Boolean(onSaved); setOpen(false); onSaved?.(); }
     else setFailed(true);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (next) { setDraft(preference.rule); setFailed(false); } setOpen(next); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (next) { setDraft(preference.rule); setFailed(false); savedAndAdvanced.current = false; } setOpen(next); }}>
       <DialogTrigger asChild>
         <Button variant="outline" className="h-10 gap-2 px-3"><PencilLine className="size-3.5" aria-hidden="true" /> Edit</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" onCloseAutoFocus={(event) => {
+        // The review page focuses the next preference; the old trigger was removed.
+        if (savedAndAdvanced.current) event.preventDefault();
+      }}>
         <form onSubmit={save} className="grid gap-5">
           <DialogHeader>
             <DialogTitle className="text-lg">Edit preference</DialogTitle>

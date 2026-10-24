@@ -13,21 +13,33 @@ export function emptyWorkspace(): WorkspaceState {
   return { documents: [], preferences: [], analyses: [], selectedIds: [] };
 }
 
-const ruleKey = (rule: string) => rule.toLowerCase().replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "");
+// A fixture may itself depict pending work. Only real work blocks entry; restoring
+// the saved session and switching between fixtures must always remain possible.
+export function swapFixtureWorkspace(state: WorkspaceState, realSession: WorkspaceState | null, next: WorkspaceState | null) {
+  if (!next) return { state: realSession ?? state, realSession: null };
+  if (!realSession && (state.documents.some((item) => item.status === "processing") || state.analyses.some((run) => run.status === "running"))) return null;
+  return { state: next, realSession: realSession ?? state };
+}
+
+const ruleKey = (purpose: Preference["purpose"], rule: string) => `${purpose}:${rule.toLowerCase().replace(/\s+/g, " ").trim().replace(/[.!?]+$/, "")}`;
 
 export function completeAnalysis(state: WorkspaceState, id: string, result: AnalysisResult): WorkspaceState {
   // A reset or removed run must never be repopulated by a late response.
   if (!state.analyses.some((run) => run.id === id && run.status === "running")) return state;
-  const known = new Set(state.preferences.map((preference) => ruleKey(preference.suggestedRule)));
+  const known = new Set(state.preferences.map((preference) => ruleKey(preference.purpose, preference.suggestedRule)));
   const added: Preference[] = [];
   for (const suggestion of result.suggestions) {
-    const key = ruleKey(suggestion.rule);
+    const key = ruleKey(suggestion.purpose, suggestion.rule);
     if (known.has(key)) continue;
     known.add(key);
     added.push({ ...suggestion, analysisId: id, status: "pending" });
   }
   return {
     ...state,
+    documents: state.documents.map((document) => {
+      const classification = result.classifications.find((item) => item.documentId === document.id);
+      return classification ? { ...document, classification } : document;
+    }),
     preferences: [...state.preferences, ...added],
     selectedIds: [],
     analyses: state.analyses.map((run) => run.id === id

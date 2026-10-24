@@ -1,10 +1,15 @@
-export const SUITE_VERSION = "survey-preferences-eval-v3";
+import type { DocumentPurpose } from "../src/lib/document-purpose";
+import { classificationCases } from "./classification-cases";
+
+export const SUITE_VERSION = "document-preferences-eval-v4";
 export type Criterion = { id: string; description: string };
 export type EvalCase = {
   id: string;
   description: string;
   files: string[];
   paragraphs?: string[];
+  inlineDocuments?: { name: string; paragraphs: string[] }[];
+  expectedPurposes?: Record<string, DocumentPurpose>;
   expectEmpty?: boolean;
   forbiddenText?: string;
   excludedEvidenceDocument?: string;
@@ -26,6 +31,7 @@ const noPersonalInference: Criterion = { id: "author-not-respondent", descriptio
 const noSubjectInference: Criterion = { id: "style-not-subject", description: "Infer reusable survey-writing choices, not project-specific prices, brands or topic choices. Do not infer slide/presentation layout preferences from questionnaire text." };
 const common = [noPersonalInference, noSubjectInference];
 export const cases: EvalCase[] = [
+  ...classificationCases,
   { id: "routing-evidence", description: "Preserve scale-specific thresholds and explicit response-code meanings.", files: [],
     paragraphs: [
       "Fictional library brochure survey.",

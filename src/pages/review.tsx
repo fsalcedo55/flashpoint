@@ -1,31 +1,60 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, CheckCheck, ChevronRight, FileText, ListChecks, Quote, RotateCcw, X } from "lucide-react";
+import { ArrowRight, Check, CheckCheck, FileText, ListChecks, Quote, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Label } from "@/components/ui/label";
+import type { Preference } from "@/lib/preferences";
 import { PageHeading } from "@/components/page-heading";
 import { PreferenceEditor } from "@/components/preference-editor";
+import { PageScrollFade, ScrollFade } from "@/components/scroll-fade";
 import { useWorkspace } from "@/components/workspace-provider";
 import { cn } from "@/lib/utils";
+import { documentPurposeLabels, preferencePurposeSchema, type PreferencePurpose } from "@/lib/document-purpose";
 
 export default function ReviewPage() {
   const { preferences, documents, decide } = useWorkspace();
   const profileHref = "/profile";
   const [view, setView] = useState("pending");
+  const [purpose, setPurpose] = useState<PreferencePurpose | "all">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const pending = preferences.filter((item) => item.status === "pending");
-  const reviewed = preferences.filter((item) => item.status !== "pending");
+  const scoped = preferences.filter((item) => purpose === "all" || item.purpose === purpose);
+  const pending = scoped.filter((item) => item.status === "pending");
+  const reviewed = scoped.filter((item) => item.status !== "pending");
   const visible = view === "pending" ? pending : reviewed;
   const selected = visible.find((item) => item.id === selectedId) ?? visible[0];
+  const hasOtherPending = purpose !== "all" && preferences.some((item) => item.status === "pending" && item.purpose !== purpose);
+  const completionTitle = purpose === "all" ? "Review complete" : "Review complete for this type";
+  const purposes = preferencePurposeSchema.options.filter((type) => preferences.some((item) => item.purpose === type));
+  const detailRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusAfterDecision = useRef(false);
+
+  useEffect(() => {
+    if (!focusAfterDecision.current) return;
+    focusAfterDecision.current = false;
+    headingRef.current?.focus({ preventScroll: true });
+    const target = detailRef.current ?? headingRef.current;
+    if (target && target.getBoundingClientRect().top < 0) {
+      target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    }
+  }, [selected?.id, view]);
+
+  // A decision moves the item to the other tab; keep the reviewer's place by selecting its neighbour.
+  function decideAndAdvance(id: string, status: Preference["status"]) {
+    if (decide(id, status)) advanceFrom(id);
+  }
+  function advanceFrom(id: string) {
+    const index = visible.findIndex((item) => item.id === id);
+    focusAfterDecision.current = true;
+    setSelectedId((visible[index + 1] ?? visible[index - 1])?.id ?? null);
+  }
 
   return (
     <>
-      <PageHeading title="Review preferences"
-        description="Check the source evidence, then confirm, edit, or deny each suggestion."
-        action={preferences.length ? <Button asChild variant="outline" className="h-10 gap-2 bg-white px-3 text-sm"><Link href={profileHref}>View profile <ArrowRight className="size-3.5" aria-hidden="true" /></Link></Button> : undefined} />
+      <PageHeading title="Review preferences" />
 
       {!preferences.length ? (
         <div className="flex min-h-[370px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
@@ -37,20 +66,29 @@ export default function ReviewPage() {
       ) : (
         <Tabs value={view} onValueChange={setView} className="gap-0">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-              <TabsList aria-label="Filter preferences">
-                <TabsTrigger value="pending" className="px-4">To review <span className="ml-1 text-xs tabular-nums">{pending.length}</span></TabsTrigger>
-                <TabsTrigger value="reviewed" className="px-4">Reviewed <span className="ml-1 text-xs tabular-nums">{reviewed.length}</span></TabsTrigger>
-              </TabsList>
-            <span className="text-xs text-muted-foreground">{reviewed.length} of {preferences.length} reviewed</span>
+            <TabsList aria-label="Filter preferences">
+              <TabsTrigger value="pending" className="px-4">To review <span className="ml-1 text-xs tabular-nums">{pending.length}</span></TabsTrigger>
+              <TabsTrigger value="reviewed" className="px-4">Reviewed <span className="ml-1 text-xs tabular-nums">{reviewed.length}</span></TabsTrigger>
+            </TabsList>
+            {/* Always shown, so the option to filter by type is discoverable before a second type exists. */}
+            <NativeSelect aria-label="Document type" value={purpose} onChange={(event) => { setPurpose(event.target.value as PreferencePurpose | "all"); setSelectedId(null); }} className="w-full bg-white sm:w-auto [&_select]:h-10">
+              <NativeSelectOption value="all">All document types ({preferences.length})</NativeSelectOption>
+              {preferencePurposeSchema.options.map((type) => {
+                const count = preferences.filter((item) => item.purpose === type).length;
+                return <NativeSelectOption key={type} value={type} disabled={!count}>{documentPurposeLabels[type]} ({count})</NativeSelectOption>;
+              })}
+            </NativeSelect>
           </div>
 
           <TabsContent value={view} className="mt-0">
           {!selected ? (
             <div className="flex min-h-[340px] flex-col items-center justify-center rounded-xl border bg-white px-6 py-12 text-center">
               <span className="stagger-item mb-5 flex size-14 items-center justify-center rounded-full bg-secondary text-primary"><CheckCheck className="size-6" aria-hidden="true" /></span>
-              <h2 className="stagger-item text-lg font-semibold">{view === "pending" ? "Review complete" : "No reviewed preferences"}</h2>
-              <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{view === "pending" ? "All suggestions have been reviewed. Confirmed preferences are in your profile for this session." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
-              {view === "pending" ? (
+              <h2 ref={headingRef} tabIndex={-1} className="stagger-item scroll-mt-6 text-lg font-semibold">{!scoped.length ? "No preferences for this type" : view === "pending" ? completionTitle : "No reviewed preferences"}</h2>
+              <p className="stagger-item mt-3 max-w-sm text-sm leading-7 text-muted-foreground">{!scoped.length ? "Choose another document type to see its suggestions." : view === "pending" ? "All suggestions in this view have been reviewed. Confirmed preferences are in your profile." : "Reviewed suggestions will appear here after you confirm or deny them."}</p>
+              {!scoped.length || (view === "pending" && hasOtherPending) ? (
+                <Button variant="outline" className="stagger-item mt-6 h-10 px-5" onClick={() => { setPurpose("all"); setView("pending"); }}>Review other types <ArrowRight aria-hidden="true" /></Button>
+              ) : view === "pending" ? (
                 <Button asChild className="stagger-item mt-6 h-10 px-5"><Link href={profileHref}>Go to your profile <ArrowRight aria-hidden="true" /></Link></Button>
               ) : <Button variant="outline" className="stagger-item mt-6 h-10 px-5" onClick={() => setView("pending")}>Back to suggestions</Button>}
             </div>
@@ -65,24 +103,29 @@ export default function ReviewPage() {
               <div className="hidden space-y-2 md:block" aria-label="Preference suggestions">
                 {visible.map((item) => (
                   <button key={item.id} onClick={() => setSelectedId(item.id)} aria-pressed={item.id === selected.id}
-                    className={cn("flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", item.id === selected.id ? "border-primary bg-accent" : "border-border bg-white hover:border-input")}>
+                    className={cn("flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-[color,background-color,border-color,scale] duration-150 ease-out motion-safe:active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", item.id === selected.id ? "border-primary bg-accent" : "border-border bg-white hover:border-input")}>
                     <div className="min-w-0 flex-1">
-                      <span className="text-xs font-medium text-muted-foreground">{item.category}</span>
+                      <span className="text-xs font-medium text-muted-foreground">{purposes.length > 1 && purpose === "all" ? `${documentPurposeLabels[item.purpose]} · ` : ""}{item.category}</span>
                       <span className="mt-2 block text-sm leading-6 font-medium">{item.title}</span>
                       <span className="mt-2 block text-xs text-muted-foreground">{item.status === "pending" ? item.evidence.length + (item.evidence.length === 1 ? " example" : " examples") : item.status === "confirmed" ? "Confirmed" : "Denied"}</span>
                     </div>
-                    <ChevronRight className={cn("mt-5 size-3.5 shrink-0", item.id === selected.id ? "text-primary" : "text-muted-foreground/40")} aria-hidden="true" />
                   </button>
                 ))}
+                <PageScrollFade />
               </div>
 
-              <article key={selected.id} aria-label="Selected preference" className="min-w-0 overflow-hidden rounded-xl border bg-white">
-                <div className="p-5 sm:p-7">
+              {/* Beside the list (md+), the detail stays in view while the list scrolls with the page, so picking an item
+                  far down the list never scrolls its detail away. Long evidence scrolls inside the detail and, at its end,
+                  hands the wheel on to the page. Height fills the viewport less top-6 and <main>'s sm:pb-11, so the
+                  panel never shifts up at the end of the list. */}
+              <article ref={detailRef} key={selected.id} aria-label="Selected preference" className="min-w-0 scroll-mt-6 rounded-xl border bg-white md:sticky md:top-6 md:flex md:h-[calc(100svh-4.25rem)] md:flex-col">
+                <ScrollFade className="p-5 sm:p-7 md:min-h-0 md:flex-1 md:overflow-y-auto md:rounded-t-xl">
                   <div className="mb-5 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="rounded-md px-2 py-1 text-xs font-medium">{documentPurposeLabels[selected.purpose]}</Badge>
                     <Badge variant="secondary" className="rounded-md px-2 py-1 text-xs font-medium">{selected.category}</Badge>
                     <span className="text-xs text-muted-foreground">{selected.status === "pending" ? "Suggested preference" : selected.status === "confirmed" ? "Confirmed preference" : "Denied preference"}</span>
                   </div>
-                  <h2 className="max-w-2xl break-words text-xl leading-normal font-medium tracking-[-0.02em]">{selected.rule}</h2>
+                  <h2 ref={headingRef} tabIndex={-1} className="max-w-2xl break-words text-xl leading-normal font-medium tracking-[-0.02em]">{selected.rule}</h2>
                   <p className="mt-4 text-sm leading-7 text-muted-foreground">{selected.rationale}</p>
 
                   <div className="mt-7 border-t pt-6">
@@ -110,19 +153,21 @@ export default function ReviewPage() {
                     </div>
                     <p className="mt-3 text-xs leading-5 text-muted-foreground">{selected.evidence.some((item) => item.kind === "image") ? "Image references are checked, but visual observations need your review." : "Quotes are checked against the extracted document text. Review whether they support the suggested preference."}</p>
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-background/60 p-5 sm:px-7">
+                </ScrollFade>
+                {/* Pinned to the viewport bottom so a decision never waits on scrolling past long evidence. */}
+                <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t bg-background p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-sm:gap-2 max-sm:px-4 sm:px-7">
                   {selected.status === "pending" ? (
                     <>
-                      <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground" onClick={() => void decide(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /> Deny</Button>
-                      <div className="flex gap-2">
-                        <PreferenceEditor preference={selected} />
-                        <Button className="h-10 gap-2 px-4" onClick={() => void decide(selected.id, "confirmed")}><Check className="size-3.5" /> Confirm</Button>
+                      {/* Icon-only below sm, so the pinned row stays on one line on small phones. */}
+                      <Button variant="ghost" className="h-10 gap-2 px-3 text-muted-foreground max-sm:w-10 max-sm:px-0" onClick={() => decideAndAdvance(selected.id, "denied")}><X className="size-3.5" aria-hidden="true" /><span className="max-sm:sr-only">Deny</span></Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <PreferenceEditor preference={selected} onSaved={() => advanceFrom(selected.id)} />
+                        <Button className="h-10 gap-2 px-4" onClick={() => decideAndAdvance(selected.id, "confirmed")}><Check className="size-3.5" /> Confirm</Button>
                       </div>
                     </>
                   ) : (
                     <>
-                      <Button variant="ghost" className="h-10 gap-2 px-3 text-sm" onClick={() => void decide(selected.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
+                      <Button variant="ghost" className="h-10 gap-2 px-3 text-sm" onClick={() => decideAndAdvance(selected.id, "pending")}><RotateCcw className="size-3.5" aria-hidden="true" /> Return to review</Button>
                       <PreferenceEditor preference={selected} />
                     </>
                   )}

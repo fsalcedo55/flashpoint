@@ -3,7 +3,7 @@ import type { IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import formidable, { errors as formidableErrors } from "formidable";
-import { MAX_FILE_BYTES } from "../../lib/documents";
+import { formatFileSize, MAX_FILE_BYTES } from "../../lib/documents";
 import { DocumentError } from "./document-extraction";
 
 export async function readUpload(request: IncomingMessage) {
@@ -21,7 +21,7 @@ export async function readUpload(request: IncomingMessage) {
     return { name: file.originalFilename ?? "", buffer: await readFile(file.filepath) };
   } catch (error) {
     if (error instanceof formidableErrors.default && error.httpCode !== undefined && error.httpCode < 500) {
-      throw new DocumentError("Upload failed. Choose a nonempty PDF, DOCX or PPTX no larger than 4 MB, and try again.");
+      throw new DocumentError(`Upload failed. Choose a nonempty PDF, DOCX or PPTX no larger than ${formatFileSize(MAX_FILE_BYTES)}, and try again.`);
     }
     // Preserve filesystem and unexpected parser failures for the API's error handler.
     throw error;

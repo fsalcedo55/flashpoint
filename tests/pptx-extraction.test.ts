@@ -88,8 +88,8 @@ test("mixed survey and presentation analysis resolves citations to original slid
   const sources = prepareAnalysisSources({ documents: [
     { id: randomUUID(), name: "Report.pptx", ...deck }, { id: randomUUID(), name: "Survey.docx", ...survey },
   ] });
-  const result = verifyEvidence(extractionSchema.parse({ suggestions: [{
-    title: "Use action-oriented recommendations", category: "Presentation structure",
+  const result = verifyEvidence(extractionSchema.pick({ suggestions: true }).parse({ suggestions: [{ purpose: "research_report",
+    title: "Use action-oriented recommendations", category: "Report structure",
     rule: "In research presentations, phrase recommendations as actions.",
     rationale: "The recommendation starts with an action verb; this may be specific to this report.",
     evidence: [{ sourceId: "d1s3", quote: "Prioritize the highest-impact improvements." }],
